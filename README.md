@@ -130,7 +130,7 @@ Example:
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
 			// Callback mode
-			video.fnExtractSoundToMP3('/path/to/save_your_frames', {
+			video.fnExtractFrameToJPG('/path/to/save_your_frames', {
 				frame_rate : 1,
 				number : 5,
 				file_name : 'my_frame_%t_%s'
@@ -177,7 +177,7 @@ Example:
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
 			// Callback mode
-			video.fnExtractSoundToMP3('/path/to/retrieve/watermark_file.png', '/path/to/save/your_file_video.mp4', {
+			video.fnAddWatermark('/path/to/retrieve/watermark_file.png', '/path/to/save/your_file_video.mp4', {
 				position : 'SE'
 			}, function (error, file) {
 				if (!error)
