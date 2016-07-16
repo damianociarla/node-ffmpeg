@@ -14,7 +14,7 @@ To start using this library, you must include it in your project and then you ca
 	var ffmpeg = require('ffmpeg');
 	
 Use the callback function
-	
+```js
 	try {
 		new ffmpeg('/path/to/your_movie.avi', function (err, video) {
 			if (!err) {
@@ -27,9 +27,9 @@ Use the callback function
 		console.log(e.code);
 		console.log(e.msg);
 	}
-	
+```	
 Use the approach with the library promise
-
+```js
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -41,11 +41,11 @@ Use the approach with the library promise
 		console.log(e.code);
 		console.log(e.msg);
 	}
-	
+```	
 ## The video object
 
 Each time you create a new instance, this library provides a new object to retrieve the information of the video, the ffmpeg configuration and all methods to make the necessary conversions:
-
+```js
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -60,7 +60,7 @@ Each time you create a new instance, this library provides a new object to retri
 		console.log(e.code);
 		console.log(e.msg);
 	}
-	
+```	
 ## Preset functions
 
 The video object contains a set of functions that allow you to perform specific operations independent of the settings for the conversion. In all the functions you can use the approach with the callback function or with the promise object
@@ -78,7 +78,7 @@ Params:
 	> function (error, file)
 
 Example:
-
+```js
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -94,7 +94,7 @@ Example:
 		console.log(e.code);
 		console.log(e.msg);
 	}
-
+```
 ### *video.fnExtractFrameToJPG(destinationFolder, settings, callback)*
 
 This function takes care of extracting one or more frames from the video that is being developed. At the end of the operation will return an array containing the list of extracted images
@@ -105,7 +105,7 @@ Params:
 	> /path/to/save_your_frames
 
 *	__settings__: *(optional)* Settings to change the default settings:
-
+```js
 		{
 			start_time				: null		// Start time to recording
 		  , duration_time			: null		// Duration of recording
@@ -120,12 +120,12 @@ Params:
 		  , padding_color			: 'black'	// Padding color
 		  , file_name				: null		// File name
 		}
-
+```
 *	__callback__: *(optional)* If specified at the end of the process will be returned list of paths of frames created:
 	> function (error, files)
 
 Example:
-
+```js
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -145,7 +145,7 @@ Example:
 		console.log(e.code);
 		console.log(e.msg);
 	}
-
+```
 ### *video.fnAddWatermark(watermarkPath, newFilepath, settings, callback)* 
 
 This function takes care of adding a watermark to the video that is being developed. You can specify the exact position in which position the image
@@ -159,7 +159,7 @@ Params:
 	> /path/to/save/your_file_video.mp4
 
 *	__settings__: *(optional)* Settings to change the default settings:
-
+```js
 		{
 			position		: "SW"		// Position: NE NC NW SE SC SW C CE CW
 		  , margin_nord		: null		// Margin nord
@@ -167,12 +167,12 @@ Params:
 		  , margin_east		: null		// Margin east
 		  , margin_west		: null		// Margin west
 		};
-
+```
 *	__callback__: *(optional)* If specified at the end of the process it will return the path of the new video containing the watermark:
 	> function (error, files)
 
 Example:
-
+```js
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -190,7 +190,7 @@ Example:
 		console.log(e.code);
 		console.log(e.msg);
 	}
-
+```
 ## Custom settings
 
 In addition to the possibility of using the preset, this library provides a variety of settings with which you can modify to your liking settings for converting video
@@ -216,29 +216,29 @@ In addition to the possibility of using the preset, this library provides a vari
 		video.setVideoFrameRate(25)
 
 *	__video.setVideoStartTime(time)__: Sets the start time. You can specify the value in seconds or in date time format. Example:
-	
+```js	
 		// Seconds
 		video.setVideoStartTime(13)
 
 		// Date time format
 		video.setVideoStartTime('00:00:13')
-
+```
 *	__video.setVideoDuration(duration)__: Sets the duration. You can specify the value in seconds or in date time format. Example:
-
+```js	
 		// Seconds
 		video.setVideoDuration(100)
 
 		// Date time format
 		video.setVideoDuration('00:01:40')
-
+```
 *	__video.setVideoAspectRatio(aspect)__: Sets the new aspetc ratio. You can specify the value with a number or with a string in the format 'xx:xx'. Example:
-
+```js	
 		// Value
 		video.setVideoAspectRatio(1.77)
 
 		// Format xx:xx
 		video.setVideoAspectRatio('16:9')
-
+```
 *	__video.setVideoSize(size, keepPixelAspectRatio, keepAspectRatio, paddingColor)__: Set the size of the video. This library can handle automatic resizing of the video. You can also apply a padding automatically keeping the original aspect ratio
 	
 	The following size formats are allowed to be passed to _size_:
@@ -252,13 +252,13 @@ In addition to the possibility of using the preset, this library provides a vari
 	> 640x? _Fixed width, calculate height_
 
 	Example:
-
+```js	
 		// In this example, the video will be automatically resized to 640 pixels wide and will apply a padding white
 		video.setVideoSize('640x?', true, true, '#fff')
 
 		// In this example, the video will be resized to 640x480 pixel, and if the aspect ratio is different the video will be stretched
 		video.setVideoSize('640x480', true, false)
-
+```
 *	__video.setAudioCodec(codec)__: Sets the new audio codec. Example:
 	
 		video.setAudioCodec('libfaac')
@@ -315,10 +315,10 @@ If the ffmpeg parameters are not present in the list of available function you c
 **video.addCommand(command, argument)**
 
 Example:
-
+```js	
 	// In this example will be changed the output to avi format
 	video.addCommand('-f', 'avi');
-
+```
 ## Save the file
 
 After setting the desired parameters have to start the conversion process. To do this you must call the function 'save'. This method takes as input the final destination of the file and optionally a callback function. If the function callback is not specified it's possible use the promise object.
@@ -326,7 +326,7 @@ After setting the desired parameters have to start the conversion process. To do
 **video.save(destionationFileName, callback)**
 
 Example:
-
+```js	
 	try {
 		var process = new ffmpeg('/path/to/your_movie.avi');
 		process.then(function (video) {
@@ -347,3 +347,4 @@ Example:
 		console.log(e.code);
 		console.log(e.msg);
 	}
+```
