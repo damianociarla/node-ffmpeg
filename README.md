@@ -348,3 +348,15 @@ Example:
 		console.log(e.msg);
 	}
 ```
+
+## Setting a custom ffmpeg path
+
+By default, `ffmpeg` is called from the `PATH`. However, if you have ffmpeg stored in a custom location then you can specify that location using `ffmpeg.bin`.
+
+Example:
+```js
+const ffmpeg = require('ffmpeg');
+ffmpeg.bin = '/usr/local/bin/ffmpeg';
+
+const video = new ffmpeg('input.mp4');
+```
