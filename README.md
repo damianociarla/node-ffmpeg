@@ -123,10 +123,10 @@ Params:
 		}
 ```
     > new parameter added for quality of the frames: __qscale__
+
     > qscale can be set between 1-31 *(lower is better)*
-    ```js
-        qscale : 1  //better quality framing.
-    ```
+
+    > qscale : 1  //better quality framing.
 
 *	__callback__: *(optional)* If specified at the end of the process will be returned list of paths of frames created:
 	> function (error, files)
