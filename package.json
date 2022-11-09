@@ -11,6 +11,7 @@
 		"url": "https://github.com/damianociarla/node-ffmpeg.git"
 	},
 	"main": "./index.js",
+	"license": "MIT",
 	"dependencies": {
 		"when" : ">= 0.0.1"
 	}
