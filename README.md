@@ -42,6 +42,11 @@ Use the approach with the library promise
 		console.log(e.msg);
 	}
 ```	
+Can be used an url to video:
+```js
+   var process = new ffmpeg('https://videos_bacucket.s3.amazonaws.com/testl.mp4');
+```
+
 ## The video object
 
 Each time you create a new instance, this library provides a new object to retrieve the information of the video, the ffmpeg configuration and all methods to make the necessary conversions:
@@ -119,6 +124,7 @@ Params:
 		  , keep_aspect_ratio		: true		// Mantain the original aspect ratio
 		  , padding_color			: 'black'	// Padding color
 		  , file_name				: null		// File name
+		  , png_frame				: false		// PNG frame instead of JPG
 		}
 ```
 *	__callback__: *(optional)* If specified at the end of the process will be returned list of paths of frames created:
