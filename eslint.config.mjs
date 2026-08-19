@@ -2,7 +2,17 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', '**/*.mjs', '**/*.cjs'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'docs/.vitepress/dist/**',
+      'docs/.vitepress/cache/**',
+      'node_modules/**',
+      '**/*.mjs',
+      '**/*.cjs',
+    ],
+  },
   eslint.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,

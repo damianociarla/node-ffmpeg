@@ -1,6 +1,10 @@
 node_modules/
 dist/
 coverage/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+.playwright-cli/
+output/playwright/
 *.tgz
 .DS_Store
 .idea/

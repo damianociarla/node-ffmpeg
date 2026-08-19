@@ -22,7 +22,7 @@
   "bugs": {
     "url": "https://github.com/damianociarla/node-ffmpeg/issues"
   },
-  "homepage": "https://github.com/damianociarla/node-ffmpeg#readme",
+  "homepage": "https://damianociarla.github.io/node-ffmpeg/",
   "type": "module",
   "main": "./index.cjs",
   "module": "./dist/index.js",
@@ -50,13 +50,16 @@
   "scripts": {
     "build": "tsup",
     "clean": "rimraf dist coverage",
+    "docs:build": "vitepress build docs",
+    "docs:dev": "vitepress dev docs",
+    "docs:preview": "vitepress preview docs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . && tsc --noEmit",
     "test": "vitest run --coverage",
     "test:integration": "FFMPEG_INTEGRATION=1 vitest run test/real-ffmpeg.test.ts",
     "test:watch": "vitest",
-    "check": "npm run format:check && npm run lint && npm test && npm run build && npm run pack:check",
+    "check": "npm run format:check && npm run lint && npm test && npm run build && npm run docs:build && npm run pack:check",
     "pack:check": "node test/cjs-smoke.cjs && npm pack --dry-run",
     "prepublishOnly": "npm run check"
   },
@@ -70,6 +73,7 @@
     "tsup": "8.5.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.67.0",
+    "vitepress": "1.6.4",
     "vitest": "4.1.11"
   },
   "overrides": {

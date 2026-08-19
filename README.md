@@ -1,5 +1,7 @@
 # node-ffmpeg
 
+[Documentation](https://damianociarla.github.io/node-ffmpeg/) · [API reference](https://damianociarla.github.io/node-ffmpeg/api/video) · [Migration guide](https://damianociarla.github.io/node-ffmpeg/guide/migration)
+
 A small, typed Node.js wrapper around the FFmpeg and ffprobe command-line tools. It keeps the
 original `ffmpeg` package API—Promise or callback construction, chainable setters, conversion,
 frame extraction, audio extraction, and watermarks—while using modern Node.js primitives.
