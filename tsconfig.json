@@ -16,5 +16,5 @@
     "ignoreDeprecations": "6.0",
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "test", "*.ts"]
+  "include": ["src", "test", "docs/.vitepress/**/*.ts", "docs/env.d.ts", "*.ts"]
 }

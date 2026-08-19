@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 
 const input = process.argv.at(-1) ?? '';
+if (input.includes('invalid-json')) {
+  console.log('{this is not json');
+  process.exit(0);
+}
+if (input.includes('probe-failure')) {
+  console.error('probe failed intentionally');
+  process.exit(8);
+}
 console.log(
   JSON.stringify({
     streams: [

@@ -4,6 +4,16 @@ import { dirname } from 'node:path';
 
 const args = process.argv.slice(2);
 
+if (args.includes('--stdout')) console.log('stdout fixture');
+if (args.includes('--large-output')) {
+  console.log(`START-${'x'.repeat(4096)}-STDOUT-END`);
+  console.error(`START-${'y'.repeat(4096)}-STDERR-END`);
+}
+if (args.includes('--exit-seven')) {
+  console.error('accepted exit fixture');
+  process.exit(7);
+}
+
 if (args.includes('-formats')) {
   console.log('configuration: --enable-libmp3lame --enable-libx264');
   console.log('File formats:');
@@ -35,8 +45,8 @@ if (output.includes('forced-slow')) {
 console.error('frame=   10 fps=25.0 time=00:00:05.00 speed=2.0x');
 await mkdir(dirname(output), { recursive: true });
 if (output.includes('%d')) {
-  await writeFile(output.replace('%d', '1'), 'frame 1');
-  await writeFile(output.replace('%d', '2'), 'frame 2');
+  await writeFile(output.replace('%d', '1'), JSON.stringify(args));
+  await writeFile(output.replace('%d', '2'), JSON.stringify(args));
 } else {
   await writeFile(output, JSON.stringify(args));
 }
