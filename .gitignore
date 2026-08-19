@@ -1,2 +1,8 @@
-/nbproject/private/
-/nbproject/
+node_modules/
+dist/
+coverage/
+*.tgz
+.DS_Store
+.idea/
+.vscode/
+*.log
