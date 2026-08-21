@@ -61,3 +61,39 @@ try {
   }
 }
 ```
+
+Every package error preserves its historical numeric `code`, a human-readable `message`/`msg`, and
+optional `stderr` and `cause` diagnostics.
+
+| Code | Meaning                                              |
+| ---: | ---------------------------------------------------- |
+|  100 | Empty input path                                     |
+|  101 | Input path is not a string                           |
+|  102 | Unknown setting or option name                       |
+|  103 | Local input does not exist                           |
+|  104 | Output format is unavailable                         |
+|  105 | Invalid audio channel count                          |
+|  106 | Frame destination directory could not be created     |
+|  107 | Conflicting or invalid frame interval selector       |
+|  108 | Watermark does not exist                             |
+|  109 | Invalid watermark position                           |
+|  110 | Invalid size expression                              |
+|  111 | Square-pixel resolution is unavailable               |
+|  112 | Reserved legacy duplicate-command error              |
+|  113 | Encoder is unavailable                               |
+|  114 | Executable could not start                           |
+|  115 | FFmpeg/ffprobe returned an unsuccessful exit code    |
+|  116 | Process timed out                                    |
+|  117 | Process was aborted                                  |
+|  118 | ffprobe JSON is invalid                              |
+|  119 | Complete process output exceeded `maxBuffer`         |
+|  120 | Invalid numeric option                               |
+|  121 | Invalid time expression                              |
+|  122 | Invalid aspect ratio                                 |
+|  123 | Invalid setting value or container                   |
+|  124 | Output path could be interpreted as an FFmpeg option |
+|  125 | Unsafe or invalid FFmpeg color expression            |
+
+Operational validation errors from terminal methods reject their Promise or reach their callback.
+Input/settings validation in `ffmpeg()`, `new ffmpeg()`, `create()` and `client.open()`, plus setter
+and `getCommand()` preview validation, is synchronous.

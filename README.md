@@ -139,6 +139,12 @@ All setters are chainable:
 `copy` is accepted by both codec setters. Repeated custom options such as multiple `-map` or
 `-metadata` entries are supported.
 
+Terminal methods consume the current fluent options at invocation. Their validation and process
+errors always arrive through Promise rejection or the optional callback. Input/settings validation
+performed by `ffmpeg()`, `new ffmpeg()`, `create()` and `client.open()` remains synchronous, as do
+setters and `getCommand()`. Concurrent operations on one `Video` use isolated option snapshots, although
+their shared lifecycle events may interleave.
+
 ### Metadata
 
 `video.metadata` preserves the original package shape (`duration`, `video`, `audio`, and common

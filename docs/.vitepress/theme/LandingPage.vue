@@ -94,7 +94,7 @@ onBeforeUnmount(() => {
           <p class="eyebrow hero-enter hero-enter-1">FFmpeg, without the shell games.</p>
           <h1 class="hero-enter hero-enter-2">
             Media pipelines.<br />
-            <em>Typed end to end.</em>
+            <em>Type-safe by default.</em>
           </h1>
           <p class="hero-summary hero-enter hero-enter-3">
             A modern Node.js interface for probing, transforming, and exporting media—with native

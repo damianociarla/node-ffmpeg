@@ -5,6 +5,7 @@ on:
     types: [published]
 
 permissions:
+  checks: read
   contents: read
   id-token: write
 
@@ -17,7 +18,40 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          fetch-depth: 0
           ref: ${{ github.event.release.tag_name }}
+      - name: Verify protected-main release eligibility
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REQUIRED_CHECK: CI / Required
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_sha="$(git rev-parse --verify "${RELEASE_TAG}^{commit}")"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$release_sha" origin/main
+
+          checks_file="$RUNNER_TEMP/release-checks.json"
+          curl --fail-with-body --silent --show-error \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${release_sha}/check-runs?filter=latest&per_page=100" \
+            --output "$checks_file"
+
+          CHECKS_FILE="$checks_file" node <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const response = JSON.parse(readFileSync(process.env.CHECKS_FILE, 'utf8'));
+          const required = response.check_runs?.find(
+            (check) =>
+              check.name === process.env.REQUIRED_CHECK && check.app?.slug === 'github-actions',
+          );
+          if (required?.status !== 'completed' || required.conclusion !== 'success') {
+            console.error(`Required check ${process.env.REQUIRED_CHECK} is not successful`);
+            process.exit(1);
+          }
+          NODE
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24

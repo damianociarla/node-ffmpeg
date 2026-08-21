@@ -3,19 +3,54 @@ import { mkdtemp, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import { FfmpegError } from '../src/errors.js';
 import { effectiveDuration, parseProgress, ProgressStreamParser } from '../src/video.js';
 import { createVideo, watermark } from './helpers.js';
 
 describe('conversion execution and lifecycle', () => {
-  it('rejects option-like outputs before spawning FFmpeg', () => {
+  it('rejects option-like outputs asynchronously before spawning FFmpeg', async () => {
     const video = createVideo();
     const onStart = vi.fn();
+    const onError = vi.fn();
     video.on('start', onStart);
-    expect(() => video.save('-report')).toThrow(expect.objectContaining({ code: 124 }));
-    expect(() => video.fnExtractSoundToMP3('-report')).toThrow(
-      expect.objectContaining({ code: 124 }),
-    );
+    video.on('error', onError);
+    let save: Promise<string> | undefined;
+    let audio: Promise<string> | undefined;
+    expect(() => {
+      save = video.save('-report');
+      audio = video.fnExtractSoundToMP3('-report');
+    }).not.toThrow();
+    await expect(save).rejects.toMatchObject({ code: 124 });
+    await expect(audio).rejects.toMatchObject({ code: 124 });
     expect(onStart).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(2);
+  });
+
+  it('delivers validation failures to callbacks exactly once and asynchronously', async () => {
+    const video = createVideo();
+    const callback = vi.fn();
+    let synchronous = true;
+    await new Promise<void>((resolve) => {
+      expect(() =>
+        video.save('-report', (error, result) => {
+          callback(error, result);
+          expect(synchronous).toBe(false);
+          expect(error).toMatchObject({ code: 124 });
+          expect(result).toBeNull();
+          resolve();
+        }),
+      ).not.toThrow();
+      synchronous = false;
+    });
+    expect(callback).toHaveBeenCalledOnce();
+  });
+
+  it('consumes fluent options even when planning fails', async () => {
+    const video = createVideo().setDisableAudio().addCommand('-movflags', 'faststart');
+    await expect(video.save('-report')).rejects.toMatchObject({ code: 124 });
+    const next = video.getCommand('/tmp/next-after-planning-error.mp4').args;
+    expect(next).not.toContain('-an');
+    expect(next).not.toContain('-movflags');
   });
 
   it('emits start, stderr, progress and end in order', async () => {
@@ -85,6 +120,32 @@ describe('conversion execution and lifecycle', () => {
     expect(video.getCommand('/tmp/next.mp4').args).not.toContain('-an');
   });
 
+  it('isolates concurrent operations on the same Video', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-concurrent-video-'));
+    const slowDestination = join(directory, 'forced-slow-first.mp4');
+    const fastDestination = join(directory, 'second.mp4');
+    const video = createVideo().setDisableAudio();
+    const slow = video.save(slowDestination);
+    video.setVideoCodec('libx264');
+    const fast = video.save(fastDestination);
+
+    await Promise.all([slow, fast]);
+    const slowArgs = JSON.parse(await readFile(slowDestination, 'utf8')) as string[];
+    const fastArgs = JSON.parse(await readFile(fastDestination, 'utf8')) as string[];
+    expect(slowArgs).toContain('-an');
+    expect(slowArgs).not.toContain('libx264');
+    expect(fastArgs).toContain('libx264');
+    expect(fastArgs).not.toContain('-an');
+  });
+
+  it('does not erase builder changes made while an operation is active', async () => {
+    const video = createVideo().setDisableAudio();
+    const slow = video.save('/tmp/forced-slow-pending-builder.mp4');
+    video.setVideoCodec('libx264');
+    await slow;
+    expect(video.getCommand('/tmp/after-slow.mp4').args).toContain('libx264');
+  });
+
   it('supports conversion abort signals', async () => {
     const controller = new AbortController();
     const video = createVideo({ signal: controller.signal });
@@ -132,6 +193,21 @@ describe('MP3 extraction', () => {
       });
     });
   });
+
+  it('delivers validation errors through the legacy callback', async () => {
+    let synchronous = true;
+    await new Promise<void>((resolve) => {
+      expect(() =>
+        createVideo().fnExtractSoundToMP3('-report', (error, result) => {
+          expect(synchronous).toBe(false);
+          expect(error).toMatchObject({ code: 124 });
+          expect(result).toBeNull();
+          resolve();
+        }),
+      ).not.toThrow();
+      synchronous = false;
+    });
+  });
 });
 
 describe('frame extraction', () => {
@@ -146,6 +222,17 @@ describe('frame extraction', () => {
       video.fnExtractFrameToJPG('.', { padding_color: 'red,negate' }),
     ).rejects.toMatchObject({ code: 125 });
     expect(onStart).not.toHaveBeenCalled();
+  });
+
+  it('maps destination directory failures to stable error 106', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-frame-mkdir-'));
+    const file = join(directory, 'not-a-directory');
+    await writeFile(file, 'fixture');
+    const error = await createVideo()
+      .fnExtractFrameToJPG(file)
+      .catch((reason: unknown) => reason);
+    expect(error).toMatchObject({ code: 106 });
+    expect((error as FfmpegError).cause).toBeInstanceOf(Error);
   });
 
   it.each([
@@ -238,6 +325,17 @@ describe('frame extraction', () => {
     ).rejects.toMatchObject({ code });
   });
 
+  it('does not poison the Video Builder after invalid dimensions', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-frame-reuse-'));
+    const video = createVideo().setDisableAudio();
+    await expect(video.fnExtractFrameToJPG(directory, { size: 'INVALID' })).rejects.toMatchObject({
+      code: 110,
+    });
+    const next = video.getCommand(join(directory, 'valid.mp4')).args;
+    expect(next).not.toContain('-an');
+    expect(next.at(-1)).toBe(join(directory, 'valid.mp4'));
+  });
+
   it('supports both frame callback overloads', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-frame-callback-'));
     await new Promise<void>((resolve, reject) => {
@@ -253,10 +351,12 @@ describe('frame extraction', () => {
 });
 
 describe('watermark preset', () => {
-  it('rejects an option-like explicit watermark destination', () => {
-    expect(() => createVideo().fnAddWatermark(watermark, '-report')).toThrow(
-      expect.objectContaining({ code: 124 }),
-    );
+  it('rejects an option-like explicit watermark destination asynchronously', async () => {
+    let promise: Promise<string> | undefined;
+    expect(() => {
+      promise = createVideo().fnAddWatermark(watermark, '-report');
+    }).not.toThrow();
+    await expect(promise).rejects.toMatchObject({ code: 124 });
   });
 
   it('derives a destination name and writes the result', async () => {
@@ -279,6 +379,21 @@ describe('watermark preset', () => {
           resolve();
         }
       });
+    });
+  });
+
+  it('delivers watermark validation errors through the callback', async () => {
+    let synchronous = true;
+    await new Promise<void>((resolve) => {
+      expect(() =>
+        createVideo().fnAddWatermark(watermark, '-report', {}, (error, result) => {
+          expect(synchronous).toBe(false);
+          expect(error).toMatchObject({ code: 124 });
+          expect(result).toBeNull();
+          resolve();
+        }),
+      ).not.toThrow();
+      synchronous = false;
     });
   });
 });
