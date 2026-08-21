@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 
+import { appendFile } from 'node:fs/promises';
+
 const input = process.argv.at(-1) ?? '';
+if (process.env.INVOCATION_LOG) {
+  await appendFile(
+    process.env.INVOCATION_LOG,
+    `${JSON.stringify({ executable: 'ffprobe', args: process.argv.slice(2) })}\n`,
+  );
+}
 if (input.includes('invalid-json')) {
   console.log('{this is not json');
   process.exit(0);
@@ -8,6 +16,9 @@ if (input.includes('invalid-json')) {
 if (input.includes('probe-failure')) {
   console.error('probe failed intentionally');
   process.exit(8);
+}
+if (input.includes('probe-slow')) {
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
 }
 if (input.includes('large-json')) {
   console.log(

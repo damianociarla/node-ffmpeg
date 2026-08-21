@@ -22,6 +22,7 @@ integration('real FFmpeg integration', () => {
     const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-integration-'));
     const input = join(directory, 'input with spaces.mkv');
     const output = join(directory, 'output with spaces.mkv');
+    const trimmedOutput = join(directory, 'trimmed output.mkv');
     const framesDirectory = join(directory, 'frames');
     const watermark = join(directory, 'watermark.bmp');
     const watermarked = join(directory, 'watermarked.mkv');
@@ -52,6 +53,20 @@ integration('real FFmpeg integration', () => {
     );
     await video.setVideoCodec('copy').setAudioCodec('copy').save(output);
     await progress;
+
+    const trimmedVideo = await ffmpeg(input, { overwrite: true, timeout: 30_000 });
+    let finalTrimmedPercent: number | undefined;
+    trimmedVideo.on('progress', ({ percent }) => {
+      finalTrimmedPercent = percent;
+    });
+    await trimmedVideo
+      .setVideoStartTime(0.2)
+      .setVideoDuration(0.5)
+      .setVideoCodec('mpeg4')
+      .setAudioCodec('copy')
+      .save(trimmedOutput);
+    expect(finalTrimmedPercent).toBeGreaterThanOrEqual(90);
+
     const frames = await (
       await ffmpeg(output, { overwrite: true })
     ).fnExtractFrameToJPG(framesDirectory, { number: 1, size: '160x?' });

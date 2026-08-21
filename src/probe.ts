@@ -8,6 +8,7 @@ import type {
   ResolvedSettings,
 } from './types.js';
 import { formatDuration, gcd, parseRate, parseRatio } from './utils.js';
+import { runOwnedTasks } from './owned-tasks.js';
 
 function unique(values: string[]): string[] {
   return [...new Set(values)].sort();
@@ -20,10 +21,16 @@ function aliases(value: string): string[] {
 export async function inspectConfiguration(
   settings: ResolvedSettings,
 ): Promise<FfmpegConfiguration> {
-  const [formatsResult, encodersResult] = await Promise.all([
-    runProcess(settings.ffmpegPath, ['-hide_banner', '-formats'], settings, { stdout: 'full' }),
-    runProcess(settings.ffmpegPath, ['-hide_banner', '-encoders'], settings, { stdout: 'full' }),
-  ]);
+  const [formatsResult, encodersResult] = await runOwnedTasks(settings, [
+    (ownedSettings) =>
+      runProcess(settings.ffmpegPath, ['-hide_banner', '-formats'], ownedSettings, {
+        stdout: 'full',
+      }),
+    (ownedSettings) =>
+      runProcess(settings.ffmpegPath, ['-hide_banner', '-encoders'], ownedSettings, {
+        stdout: 'full',
+      }),
+  ] as const);
   const formatsText = `${formatsResult.stdout}\n${formatsResult.stderr}`;
   const encodersText = `${encodersResult.stdout}\n${encodersResult.stderr}`;
   const decode: string[] = [];

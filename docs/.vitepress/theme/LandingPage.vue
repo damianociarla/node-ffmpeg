@@ -10,8 +10,6 @@ const base = computed(() => site.value.base);
 let observer: IntersectionObserver | undefined;
 let copyTimer: number | undefined;
 
-if (typeof document !== 'undefined') document.documentElement.classList.add('reveal-ready');
-
 function fallbackCopy(value: string): void {
   const textarea = document.createElement('textarea');
   textarea.value = value;
@@ -38,6 +36,7 @@ async function copyInstall(): Promise<void> {
 }
 
 onMounted(() => {
+  document.documentElement.classList.add('reveal-ready');
   const revealElements = document.querySelectorAll('.reveal');
   if (!('IntersectionObserver' in window)) {
     revealElements.forEach((element) => element.classList.add('is-visible'));
@@ -55,6 +54,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  document.documentElement.classList.remove('reveal-ready');
   observer?.disconnect();
   if (copyTimer) window.clearTimeout(copyTimer);
 });
@@ -125,7 +125,10 @@ onBeforeUnmount(() => {
 <span class="syntax-dim">const</span> video = <span class="syntax-dim">await</span> ffmpeg(input)
 
 video.on(<span class="syntax-string">'progress'</span>, ({ percent }) =&gt; {
-  console.log(<span class="syntax-accent">`${percent.toFixed(1)}%`</span>)
+  <span class="syntax-dim">const</span> label = percent === undefined
+    ? <span class="syntax-string">'live'</span>
+    : <span class="syntax-accent">`${percent.toFixed(1)}%`</span>
+  console.log(label)
 })
 
 <span class="syntax-dim">await</span> video
@@ -221,7 +224,7 @@ video.on(<span class="syntax-string">'progress'</span>, ({ percent }) =&gt; {
           </div>
           <div>
             <span>05</span>
-            <p>Remote protocol inputs</p>
+            <p>Hierarchical URL inputs</p>
           </div>
         </div>
       </section>

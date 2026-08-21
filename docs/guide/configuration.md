@@ -40,6 +40,16 @@ Conversions keep a bounded tail and continue when the limit is reached. Configur
 stdout cannot be truncated safely, so those operations fail with error `119` when their complete
 output exceeds `maxBuffer`.
 
+## Per-instance clients
+
+`createClient(settings)` creates an isolated, reusable FFmpeg context. It inspects formats and
+encoders once; every `client.open(input, settings)` then runs only ffprobe. Per-open settings are
+limited to `encoding`, `timeout`, `maxBuffer`, `overwrite`, and `signal`. Executable paths, `cwd`, and
+`env` stay fixed so the cached capabilities always describe the processes that will be launched.
+
+The signal passed to `createClient` controls the client lifetime. Aborting it cancels every active
+open or conversion from that client. A signal passed to `open` cancels only that media operation.
+
 ## Cancellation
 
 ```ts
@@ -51,3 +61,6 @@ await video.save(output);
 ```
 
 Cancellation rejects with an `FfmpegError` whose historical numeric code is `117`.
+
+Parallel initialization processes are owned as a group: if probing or capability inspection fails,
+the remaining children are cancelled and awaited before the original error is returned.

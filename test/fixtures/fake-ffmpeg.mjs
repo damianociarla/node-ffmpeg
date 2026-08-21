@@ -1,9 +1,16 @@
 #!/usr/bin/env node
-import { mkdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { dirname } from 'node:path';
 
 const args = process.argv.slice(2);
+
+if (process.env.INVOCATION_LOG) {
+  await appendFile(
+    process.env.INVOCATION_LOG,
+    `${JSON.stringify({ executable: 'ffmpeg', args })}\n`,
+  );
+}
 
 if (args.includes('--stdout')) console.log('stdout fixture');
 if (args.includes('--large-output')) {
@@ -34,6 +41,7 @@ if (args.includes('-encoders')) {
   console.log(' A..... aac AAC');
   console.log(' V..... mjpeg Motion JPEG');
   if (process.env.CONFIG_CODEC) console.log(` V..... ${process.env.CONFIG_CODEC} Test codec`);
+  if (process.env.CONFIG_MARKER) await writeFile(process.env.CONFIG_MARKER, 'completed');
   process.exit(0);
 }
 

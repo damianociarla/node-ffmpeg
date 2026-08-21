@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.2 - 2026-08-21
+
+### Fixed
+
+- Rejected output destinations beginning with `-` across conversion, MP3, frame, and watermark APIs
+- Restricted padding colors to safe FFmpeg color forms before building filter graphs
+- Validated the complete AbortSignal listener interface and made listener cleanup defensive
+- Cancelled and awaited sibling probe/configuration processes while preserving the original failure
+- Calculated progress from the effective trimmed duration and kept unknown percentages optional
+- Corrected documentation for hierarchical URL inputs, unsupported stdin/streams, and trusted custom arguments
+- Improved server-rendered 404 content and made landing-page reveals faster and progressive-enhancement safe
+
+### Added
+
+- Added isolated `createClient()` contexts that inspect capabilities once and reuse them across media inputs
+- Added an aggregate `CI / Required` gate covering quality, unit, and real-FFmpeg matrices
+- Expanded security, lifecycle, client isolation, progress, output-path, filter, CommonJS, and integration tests
+
 ## 1.0.1 - 2026-08-21
 
 ### Fixed

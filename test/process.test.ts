@@ -76,6 +76,24 @@ describe('process execution', () => {
     });
   });
 
+  it('never lets a defensive signal cleanup exception escape process events', async () => {
+    const hostileSignal = {
+      aborted: false,
+      addEventListener() {
+        // The process only needs the complete listener interface for this cleanup test.
+      },
+      removeEventListener() {
+        throw new Error('hostile cleanup');
+      },
+    } as unknown as AbortSignal;
+    await expect(
+      runProcess(fakeFfmpeg, ['/tmp/defensive-cleanup.mp4'], {
+        ...settings,
+        signal: hostileSignal,
+      }),
+    ).resolves.toMatchObject({ code: 0 });
+  });
+
   it('tails large stdout and stderr without killing the process', async () => {
     const result = await runProcess(fakeFfmpeg, ['--large-output', '/tmp/large-output.mp4'], {
       ...settings,

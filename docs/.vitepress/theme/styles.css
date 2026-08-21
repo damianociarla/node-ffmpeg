@@ -576,19 +576,19 @@ body {
 .hero-enter {
   opacity: 0;
   transform: translateY(24px);
-  animation: hero-in 800ms cubic-bezier(0.2, 0.75, 0.2, 1) forwards;
+  animation: hero-in 600ms cubic-bezier(0.2, 0.75, 0.2, 1) forwards;
 }
 .hero-enter-1 {
   animation-delay: 100ms;
 }
 .hero-enter-2 {
-  animation-delay: 220ms;
+  animation-delay: 180ms;
 }
 .hero-enter-3 {
-  animation-delay: 360ms;
+  animation-delay: 260ms;
 }
 .hero-enter-4 {
-  animation-delay: 500ms;
+  animation-delay: 340ms;
 }
 .reveal {
   opacity: 1;
@@ -596,10 +596,10 @@ body {
 }
 .reveal-ready .reveal {
   opacity: 0;
-  transform: translateY(34px);
+  transform: translateY(20px);
   transition:
-    opacity 700ms ease,
-    transform 700ms cubic-bezier(0.2, 0.75, 0.2, 1);
+    opacity 480ms ease,
+    transform 480ms cubic-bezier(0.2, 0.75, 0.2, 1);
 }
 .reveal-ready .reveal.is-visible {
   opacity: 1;

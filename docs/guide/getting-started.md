@@ -44,6 +44,26 @@ const video = await create('/media/input.mp4', {
 });
 ```
 
+## Reuse an isolated client
+
+Services that open several files with the same FFmpeg installation can inspect capabilities once:
+
+```ts
+import { createClient } from 'ffmpeg';
+
+const client = await createClient({
+  ffmpegPath: '/opt/ffmpeg/bin/ffmpeg',
+  ffprobePath: '/opt/ffmpeg/bin/ffprobe',
+  overwrite: true,
+});
+
+const first = await client.open('/media/first.mp4');
+const second = await client.open('/media/second.mp4', { timeout: 30_000 });
+```
+
+Each client snapshots its executable paths, working directory, and environment. Its capability data
+is inspected once and cloned for every `Video`, so separate clients cannot contaminate one another.
+
 ## CommonJS and the classic constructor
 
 The historical callable CommonJS export remains intact:

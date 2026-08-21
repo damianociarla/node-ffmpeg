@@ -82,3 +82,19 @@ jobs:
       - run: ffprobe -version
       - run: npm ci
       - run: npm run test:integration
+
+  required:
+    name: CI / Required
+    if: always()
+    needs: [quality, unit, ffmpeg]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every required job
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          UNIT_RESULT: ${{ needs.unit.result }}
+          FFMPEG_RESULT: ${{ needs.ffmpeg.result }}
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$UNIT_RESULT" = success
+          test "$FFMPEG_RESULT" = success

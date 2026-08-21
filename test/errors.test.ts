@@ -5,7 +5,7 @@ describe('legacy errors', () => {
   it('exports every stable numeric error code', () => {
     expect(Object.values(errors).map(({ code }) => code)).toEqual([
       100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118,
-      119, 120, 121, 122, 123,
+      119, 120, 121, 122, 123, 124, 125,
     ]);
   });
 

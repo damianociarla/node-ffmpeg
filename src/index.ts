@@ -2,9 +2,16 @@ import { existsSync } from 'node:fs';
 import { inspectConfiguration, probeMedia } from './probe.js';
 import { errors, FfmpegError, renderError } from './errors.js';
 import { presets, sizes, ratios, audioChannels } from './presets.js';
-import type { FfmpegSettings, LegacyCallback } from './types.js';
-import { resolveSettings, isRemoteInput } from './utils.js';
+import type {
+  FfmpegConfiguration,
+  FfmpegOperationSettings,
+  FfmpegSettings,
+  LegacyCallback,
+  ResolvedSettings,
+} from './types.js';
+import { resolveSettings, resolveOperationSettings, isRemoteInput } from './utils.js';
 import { parseProgress, Video } from './video.js';
+import { runOwnedTasks } from './owned-tasks.js';
 
 export * from './types.js';
 export { FfmpegError, Video, errors, presets, sizes, ratios, audioChannels, parseProgress };
@@ -25,10 +32,10 @@ async function initializeVideo(input: string, settings: FfmpegSettings): Promise
     ffmpegPath: ffmpeg.bin,
     ffprobePath: ffmpeg.ffprobeBin,
   });
-  const [configuration, metadata] = await Promise.all([
-    inspectConfiguration(resolved),
-    probeMedia(input, resolved),
-  ]);
+  const [configuration, metadata] = await runOwnedTasks(resolved, [
+    (ownedSettings) => inspectConfiguration(ownedSettings),
+    (ownedSettings) => probeMedia(input, ownedSettings),
+  ] as const);
   return new Video(input, resolved, configuration, metadata);
 }
 
@@ -62,5 +69,53 @@ export const ffmpeg = factory;
 export function create(input: string, settings: FfmpegSettings = {}): Promise<Video> {
   validateInput(input);
   return initializeVideo(input, settings);
+}
+
+export interface FfmpegClient {
+  readonly configuration: FfmpegConfiguration;
+  open(input: string, settings?: FfmpegOperationSettings): Promise<Video>;
+}
+
+class InstanceFfmpegClient implements FfmpegClient {
+  private readonly baseSettings: ResolvedSettings;
+  private readonly lifetimeSignal: AbortSignal | undefined;
+  private readonly cachedConfiguration: FfmpegConfiguration;
+
+  constructor(settings: ResolvedSettings, configuration: FfmpegConfiguration) {
+    const { signal, ...baseSettings } = settings;
+    this.lifetimeSignal = signal;
+    this.baseSettings = {
+      ...baseSettings,
+      ...(settings.env ? { env: { ...settings.env } } : {}),
+    };
+    this.cachedConfiguration = structuredClone(configuration);
+  }
+
+  get configuration(): FfmpegConfiguration {
+    return structuredClone(this.cachedConfiguration);
+  }
+
+  open(input: string, settings: FfmpegOperationSettings = {}): Promise<Video> {
+    validateInput(input);
+    const resolved = resolveOperationSettings(settings, this.baseSettings);
+    const signals = [this.lifetimeSignal, resolved.signal].filter(
+      (signal): signal is AbortSignal => signal !== undefined,
+    );
+    const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
+    if (signal) resolved.signal = signal;
+    else delete resolved.signal;
+    return probeMedia(input, resolved).then(
+      (metadata) => new Video(input, resolved, structuredClone(this.cachedConfiguration), metadata),
+    );
+  }
+}
+
+export async function createClient(settings: FfmpegSettings = {}): Promise<FfmpegClient> {
+  const resolved = resolveSettings(settings, {
+    ffmpegPath: ffmpeg.bin,
+    ffprobePath: ffmpeg.ffprobeBin,
+  });
+  const configuration = await inspectConfiguration(resolved);
+  return new InstanceFfmpegClient(resolved, configuration);
 }
 export default ffmpeg;

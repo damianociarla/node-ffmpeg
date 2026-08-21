@@ -20,6 +20,8 @@ video
 ```
 
 Use only the setters relevant to a pipeline. `copy` is accepted as a video codec for remuxing.
+Padding colors accept alphabetic FFmpeg color names and hexadecimal RGB/RGBA forms such as
+`#112233`, `0x112233`, or `112233@0.5`. Filter syntax and whitespace are rejected.
 
 ## Audio setters
 
@@ -62,3 +64,7 @@ const output = await video.save('/media/output.mp4');
 ```
 
 After an operation completes or fails, accumulated inputs, filters, commands, and setters are reset.
+
+Output paths cannot begin with `-`, which prevents FFmpeg from interpreting a destination as an
+option. Prefix a relative filename deliberately named with a leading dash with `./`, for example
+`./-archive.mp4`; absolute paths containing such a filename are also valid.

@@ -44,6 +44,10 @@ video.info_configuration.modules;
 Format setters validate against writable formats; codec setters validate against actual encoders.
 `copy` remains available independently of encoder discovery.
 
+An `FfmpegClient` exposes a cloned `configuration` snapshot plus `open(input, settings)`. This is the
+recommended type for long-lived services that need stable, per-tenant process settings without
+repeating capability inspection.
+
 ## Errors
 
 ```ts

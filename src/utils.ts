@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path';
 import { renderError } from './errors.js';
-import type { FfmpegSettings, ResolvedSettings } from './types.js';
+import type { FfmpegOperationSettings, FfmpegSettings, ResolvedSettings } from './types.js';
 
 const defaultSettings = {
   encoding: 'utf8',
@@ -72,11 +72,13 @@ export function resolveSettings(
   ) {
     throw renderError('invalid_option_value', 'env');
   }
+  const rawSignal: unknown = settings.signal;
   if (
-    settings.signal !== undefined &&
-    (typeof settings.signal !== 'object' ||
-      typeof settings.signal.aborted !== 'boolean' ||
-      typeof settings.signal.addEventListener !== 'function')
+    rawSignal !== undefined &&
+    (!(rawSignal instanceof AbortSignal) ||
+      typeof rawSignal.aborted !== 'boolean' ||
+      typeof rawSignal.addEventListener !== 'function' ||
+      typeof rawSignal.removeEventListener !== 'function')
   ) {
     throw renderError('invalid_option_value', 'signal');
   }
@@ -88,6 +90,34 @@ export function resolveSettings(
     ffmpegPath,
     ffprobePath: settings.ffprobePath ?? inferFfprobePath(ffmpegPath, defaults.ffprobePath),
   };
+}
+
+export function resolveOperationSettings(
+  settings: FfmpegOperationSettings = {},
+  defaults: ResolvedSettings,
+): ResolvedSettings {
+  const rawSettings: unknown = settings;
+  if (rawSettings === null || typeof rawSettings !== 'object' || Array.isArray(rawSettings)) {
+    throw renderError('invalid_option_value', 'settings');
+  }
+  const valid = new Set(['encoding', 'timeout', 'maxBuffer', 'overwrite', 'signal']);
+  for (const key of Object.keys(settings)) {
+    if (!valid.has(key)) throw renderError('invalid_option_name', key);
+  }
+  const merged: FfmpegSettings = {
+    ...defaults,
+    ...settings,
+    ffmpegPath: defaults.ffmpegPath,
+    ffprobePath: defaults.ffprobePath,
+  };
+  if (defaults.cwd === undefined) delete merged.cwd;
+  else merged.cwd = defaults.cwd;
+  if (defaults.env === undefined) delete merged.env;
+  else merged.env = defaults.env;
+  return resolveSettings(merged, {
+    ffmpegPath: defaults.ffmpegPath,
+    ffprobePath: defaults.ffprobePath,
+  });
 }
 
 function inferFfprobePath(ffmpegPath: string, fallback: string): string {
@@ -143,7 +173,30 @@ export function quoteForDisplay(value: string): string {
 }
 
 export function isRemoteInput(input: string): boolean {
-  return /^[a-z][a-z\d+.-]*:\/\//i.test(input) || input === '-';
+  return /^[a-z][a-z\d+.-]*:\/\//i.test(input);
+}
+
+export function assertSafeOutput(value: unknown, name = 'destination'): asserts value is string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw renderError('invalid_option_value', name);
+  }
+  if (value.startsWith('-')) throw renderError('unsafe_output_path', value);
+}
+
+export function ffmpegColor(value: unknown): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw renderError('invalid_color', String(value));
+  }
+  const [color, alpha, extra] = value.split('@');
+  const validColor =
+    /^[A-Za-z]+$/.test(color ?? '') ||
+    /^(?:(?:0x|#)?[\dA-Fa-f]{6}(?:[\dA-Fa-f]{2})?)$/.test(color ?? '');
+  const validAlpha =
+    alpha === undefined ||
+    /^(?:0(?:\.\d+)?|1(?:\.0+)?)$/.test(alpha) ||
+    /^0x[\dA-Fa-f]{2}$/.test(alpha);
+  if (!validColor || !validAlpha || extra !== undefined) throw renderError('invalid_color', value);
+  return value;
 }
 
 export function asBitrate(value: string | number): string {

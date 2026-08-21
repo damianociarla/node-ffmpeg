@@ -89,6 +89,15 @@ describe('video sizing', () => {
     expect(args.join(' ')).toContain('#112233');
   });
 
+  it.each(['red,negate', 'black;null', 'red:blue', 'red@2'])(
+    'rejects filtergraph-capable padding color %s',
+    (color) => {
+      expect(() => createVideo().setVideoSize('640x480', false, true, color)).toThrow(
+        expect.objectContaining({ code: 125 }),
+      );
+    },
+  );
+
   it('rejects unsupported sizes', () => {
     expect(() => createVideo().setVideoSize('HD').getCommand('/tmp/out.mp4')).toThrow(
       expect.objectContaining({ code: 110 }),
@@ -192,6 +201,14 @@ describe('audio, metadata and custom options', () => {
     expect(command.args).toContain('/tmp/output file.mp4');
     expect(command.display).toContain('"/tmp/output file.mp4"');
     expect(command.command).toBe(command.display.split(' ')[0]);
+  });
+
+  it('rejects option-like output paths and accepts explicitly qualified dash names', () => {
+    expect(() => createVideo().getCommand('-report')).toThrow(
+      expect.objectContaining({ code: 124 }),
+    );
+    expect(createVideo().getCommand('./-report').args).toContain('./-report');
+    expect(createVideo().getCommand('/tmp/-report').args).toContain('/tmp/-report');
   });
 });
 
