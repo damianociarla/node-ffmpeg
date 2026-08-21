@@ -114,6 +114,11 @@ Version 1.1.1 removes the remaining scroll-triggered compositing from documentat
 real Chromium full-page capture regression, and compiles a consumer against the assembled npm
 tarball so package exports and declarations are verified together.
 
+Version 1.1.2 upgrades that capture regression to versioned, platform-stable pixel baselines for
+desktop and mobile, adds layout diagnostics without arbitrary delays, and preserves Playwright
+reports, traces, screenshots, and diffs when protected CI or trusted publishing detects a visual
+change.
+
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm
 trusted publishing with provenance. Representative downstream media corpora and high-volume service

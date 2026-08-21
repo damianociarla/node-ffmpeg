@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.2 - 2026-08-21
+
+### Testing and release engineering
+
+- Replaced the structural screenshot smoke test with versioned, platform-stable full-page visual baselines
+- Added separate Chromium projects for a 1440x900 desktop and a 390x844 mobile viewport
+- Removed the fixed visual-test delay in favor of deterministic reduced-motion, font, and network readiness
+- Added section geometry and horizontal-overflow assertions alongside pixel comparisons
+- Retained traces, screenshots, HTML reports, and image diffs as CI artifacts when visual checks fail
+
 ## 1.1.1 - 2026-08-21
 
 ### Fixed
