@@ -97,6 +97,8 @@ body {
 .landing-brand {
   display: inline-flex;
   align-items: center;
+  min-height: 44px;
+  padding: 0 4px;
   gap: 12px;
   color: var(--nf-text);
   font-weight: 720;
@@ -601,7 +603,7 @@ body {
   transform: none;
 }
 .reveal-ready .reveal {
-  opacity: 0;
+  opacity: 1;
   transform: translateY(20px);
   transition:
     opacity 480ms ease,
@@ -770,5 +772,16 @@ body {
   .hero-enter {
     opacity: 1;
     transform: none;
+  }
+}
+
+@media print {
+  .reveal,
+  .reveal-ready .reveal,
+  .hero-enter {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
   }
 }

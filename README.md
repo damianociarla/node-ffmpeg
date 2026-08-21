@@ -142,8 +142,9 @@ All setters are chainable:
 Terminal methods consume the current fluent options at invocation. Their validation and process
 errors always arrive through Promise rejection or the optional callback. Input/settings validation
 performed by `ffmpeg()`, `new ffmpeg()`, `create()` and `client.open()` remains synchronous, as do
-setters and `getCommand()`. Concurrent operations on one `Video` use isolated option snapshots, although
-their shared lifecycle events may interleave.
+setters and `getCommand()`. Concurrent operations on one `Video` use isolated option snapshots. Their
+shared lifecycle events may interleave, but every event includes an immutable operation context for
+correlation.
 
 ### Metadata
 
@@ -155,7 +156,9 @@ encoders are exposed at `video.info_configuration`.
 
 ```ts
 video.on('start', (command) => console.log(command));
-video.on('progress', (progress) => console.log(progress.percent));
+video.on('progress', (progress, operation) => {
+  console.log(operation.operationId, operation.destination, progress.percent);
+});
 video.on('stderr', (chunk) => process.stderr.write(chunk));
 video.on('end', (result) => console.log(result.code));
 video.on('error', (error) => console.error(error)); // optional

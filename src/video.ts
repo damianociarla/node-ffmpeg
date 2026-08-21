@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, stat } from 'node:fs/promises';
@@ -8,6 +9,8 @@ import type {
   ExtractFrameSettings,
   FfmpegConfiguration,
   LegacyCallback,
+  MediaOperationContext,
+  MediaOperationKind,
   MediaMetadata,
   ProcessResult,
   Progress,
@@ -58,6 +61,7 @@ interface BuilderState {
 interface OperationPlan {
   args: string[];
   progressDuration: number;
+  context: MediaOperationContext;
 }
 
 interface Dimension {
@@ -67,11 +71,11 @@ interface Dimension {
 }
 
 interface VideoEvents {
-  start: [command: string];
-  progress: [progress: Progress];
-  stderr: [chunk: string];
-  end: [result: ProcessResult];
-  error: [error: unknown];
+  start: [command: string, context: MediaOperationContext];
+  progress: [progress: Progress, context: MediaOperationContext];
+  stderr: [chunk: string, context: MediaOperationContext];
+  end: [result: ProcessResult, context: MediaOperationContext];
+  error: [error: unknown, context: MediaOperationContext];
 }
 
 interface FileFingerprint {
@@ -362,11 +366,16 @@ export class Video extends EventEmitter<VideoEvents> {
   save(destination: string): Promise<string>;
   save(destination: string, callback: LegacyCallback<string>): void;
   save(destination: string, callback?: LegacyCallback<string>): Promise<string> | void {
-    return this.runOperation(async (builder) => {
-      const plan = this.createSavePlan(destination, builder);
-      await this.execute(plan);
-      return destination;
-    }, callback);
+    const context = this.createOperationContext('save', destination);
+    return this.runOperation(
+      context,
+      async (builder) => {
+        const plan = this.createSavePlan(destination, builder, context);
+        await this.execute(plan);
+        return destination;
+      },
+      callback,
+    );
   }
 
   fnExtractSoundToMP3(destination: string): Promise<string>;
@@ -375,33 +384,39 @@ export class Video extends EventEmitter<VideoEvents> {
     destination: string,
     callback?: LegacyCallback<string>,
   ): Promise<string> | void {
-    return this.runOperation(async () => {
-      const extension =
-        extname(destination).toLowerCase() === '.mp3'
-          ? destination
-          : join(dirname(destination), `${basename(destination, extname(destination))}.mp3`);
-      assertSafeOutput(extension);
-      await this.execute({
-        args: [
-          this.settings.overwrite ? '-y' : '-n',
-          '-hide_banner',
-          '-i',
-          this.file_path,
-          '-vn',
-          '-ar',
-          '44100',
-          '-ac',
-          '2',
-          '-b:a',
-          '192k',
-          '-c:a',
-          'libmp3lame',
-          extension,
-        ],
-        progressDuration: this.metadata.duration.seconds,
-      });
-      return extension;
-    }, callback);
+    const extension =
+      extname(destination).toLowerCase() === '.mp3'
+        ? destination
+        : join(dirname(destination), `${basename(destination, extname(destination))}.mp3`);
+    const context = this.createOperationContext('audio', extension);
+    return this.runOperation(
+      context,
+      async () => {
+        assertSafeOutput(extension);
+        await this.execute({
+          args: [
+            this.settings.overwrite ? '-y' : '-n',
+            '-hide_banner',
+            '-i',
+            this.file_path,
+            '-vn',
+            '-ar',
+            '44100',
+            '-ac',
+            '2',
+            '-b:a',
+            '192k',
+            '-c:a',
+            'libmp3lame',
+            extension,
+          ],
+          progressDuration: this.metadata.duration.seconds,
+          context,
+        });
+        return extension;
+      },
+      callback,
+    );
   }
 
   fnExtractFrameToJPG(destinationFolder: string): Promise<string[]>;
@@ -421,7 +436,12 @@ export class Video extends EventEmitter<VideoEvents> {
     const settings = {
       ...(typeof settingsOrCallback === 'function' ? {} : settingsOrCallback),
     };
-    return this.runOperation(async () => this.extractFrames(destinationFolder, settings), callback);
+    const context = this.createOperationContext('frames', destinationFolder);
+    return this.runOperation(
+      context,
+      async () => this.extractFrames(destinationFolder, settings, context),
+      callback,
+    );
   }
 
   fnAddWatermark(watermarkPath: string): Promise<string>;
@@ -433,6 +453,11 @@ export class Video extends EventEmitter<VideoEvents> {
     callback: LegacyCallback<string>,
   ): void;
   fnAddWatermark(watermarkPath: string, destination: string): Promise<string>;
+  fnAddWatermark(
+    watermarkPath: string,
+    destination: string,
+    callback: LegacyCallback<string>,
+  ): void;
   fnAddWatermark(
     watermarkPath: string,
     destination: string,
@@ -456,28 +481,33 @@ export class Video extends EventEmitter<VideoEvents> {
       else if (typeof argument === 'function') callback = argument;
       else watermarkSettings = { ...argument };
     }
-    return this.runOperation(async (builder) => {
-      const resolvedDestination =
-        destination ??
-        join(
-          dirname(this.file_path),
-          `${basename(this.file_path, extname(this.file_path))}_watermark_${basename(
-            watermarkPath,
-            extname(watermarkPath),
-          )}${extname(this.file_path)}`,
-        );
-      const watermark = this.resolveWatermark(watermarkPath, watermarkSettings);
-      const effectiveBuilder: BuilderState = {
-        ...builder,
-        options: {
-          ...builder.options,
-          video: { ...builder.options.video, watermark },
-        },
-      };
-      const plan = this.createSavePlan(resolvedDestination, effectiveBuilder);
-      await this.execute(plan);
-      return resolvedDestination;
-    }, callback);
+    const resolvedDestination =
+      destination ??
+      join(
+        dirname(this.file_path),
+        `${basename(this.file_path, extname(this.file_path))}_watermark_${basename(
+          watermarkPath,
+          extname(watermarkPath),
+        )}${extname(this.file_path)}`,
+      );
+    const context = this.createOperationContext('watermark', resolvedDestination);
+    return this.runOperation(
+      context,
+      async (builder) => {
+        const watermark = this.resolveWatermark(watermarkPath, watermarkSettings);
+        const effectiveBuilder: BuilderState = {
+          ...builder,
+          options: {
+            ...builder.options,
+            video: { ...builder.options.video, watermark },
+          },
+        };
+        const plan = this.createSavePlan(resolvedDestination, effectiveBuilder, context);
+        await this.execute(plan);
+        return resolvedDestination;
+      },
+      callback,
+    );
   }
 
   private buildArgs(destination: string, builder: BuilderState): string[] {
@@ -576,6 +606,7 @@ export class Video extends EventEmitter<VideoEvents> {
   private async extractFrames(
     destinationFolder: string,
     settings: ExtractFrameSettings,
+    context: MediaOperationContext,
   ): Promise<string[]> {
     const selectors = [
       settings.every_n_frames,
@@ -678,6 +709,7 @@ export class Video extends EventEmitter<VideoEvents> {
             ? undefined
             : numericTime(settings.duration_time, 'duration_time', false),
       }),
+      context,
     });
 
     const after = await frameFingerprints(destinationFolder, matcher);
@@ -695,10 +727,15 @@ export class Video extends EventEmitter<VideoEvents> {
       .map((entry) => join(destinationFolder, entry));
   }
 
-  private createSavePlan(destination: string, builder: BuilderState): OperationPlan {
+  private createSavePlan(
+    destination: string,
+    builder: BuilderState,
+    context: MediaOperationContext,
+  ): OperationPlan {
     return {
       args: this.buildArgs(destination, builder),
       progressDuration: this.progressDuration(builder),
+      context,
     };
   }
 
@@ -710,23 +747,23 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   private async execute(plan: OperationPlan): Promise<ProcessResult> {
-    const { args, progressDuration } = plan;
+    const { args, progressDuration, context } = plan;
     const command = this.settings.ffmpegPath;
     const display = displayCommand(command, args);
     const progressParser = new ProgressStreamParser(progressDuration);
     const emitProgress = (progress: Progress): void => {
-      this.emit('progress', progress);
+      this.emit('progress', progress, context);
     };
-    this.emit('start', display);
+    this.emit('start', display, context);
     try {
       const result = await runProcess(command, args, this.settings, {
         onStderr: (chunk) => {
-          this.emit('stderr', chunk);
+          this.emit('stderr', chunk, context);
           progressParser.write(chunk).forEach(emitProgress);
         },
       });
       progressParser.flush().forEach(emitProgress);
-      this.emit('end', result);
+      this.emit('end', result, context);
       return result;
     } catch (error) {
       progressParser.flush().forEach(emitProgress);
@@ -753,6 +790,7 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   private runOperation<T>(
+    context: MediaOperationContext,
     operation: (builder: BuilderState) => Promise<T>,
     callback?: LegacyCallback<T>,
   ): Promise<T> | void {
@@ -760,10 +798,17 @@ export class Video extends EventEmitter<VideoEvents> {
     const promise = Promise.resolve()
       .then(() => operation(builder))
       .catch((error: unknown) => {
-        if (this.listenerCount('error') > 0) this.emit('error', error);
+        if (this.listenerCount('error') > 0) this.emit('error', error, context);
         throw error;
       });
     return settle(promise, callback);
+  }
+
+  private createOperationContext(
+    kind: MediaOperationKind,
+    destination: string,
+  ): MediaOperationContext {
+    return Object.freeze({ operationId: randomUUID(), kind, destination });
   }
 }
 

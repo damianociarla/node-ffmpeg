@@ -22,7 +22,9 @@ await Promise.all([first, second]);
 ```
 
 Each operation receives its own inputs, filters, commands, options, progress parser, and result.
-Lifecycle events still share the `Video` emitter and may interleave when operations overlap.
+Lifecycle events still share the `Video` emitter and may interleave when operations overlap. Every
+event receives an immutable `MediaOperationContext` as its second argument, so consumers can group
+events by `operationId` or `destination`.
 
 ## Complete method reference
 

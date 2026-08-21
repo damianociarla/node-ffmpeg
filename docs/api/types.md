@@ -48,6 +48,22 @@ An `FfmpegClient` exposes a cloned `configuration` snapshot plus `open(input, se
 recommended type for long-lived services that need stable, per-tenant process settings without
 repeating capability inspection.
 
+## Media operations
+
+```ts
+type MediaOperationKind = 'save' | 'audio' | 'frames' | 'watermark';
+
+interface MediaOperationContext {
+  readonly operationId: string;
+  readonly kind: MediaOperationKind;
+  readonly destination: string;
+}
+```
+
+The same frozen context is passed as the second argument of every event belonging to one terminal
+operation. It allows concurrent event streams on a shared `Video` to be correlated without changing
+the historical first event argument.
+
 ## Errors
 
 ```ts

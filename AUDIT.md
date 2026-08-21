@@ -106,6 +106,10 @@ Version 1.0.3 makes terminal-method failures uniformly asynchronous, consumes im
 builder snapshots, defines concurrent `Video` behavior, and binds trusted publishing to a verified
 commit on protected `main`.
 
+Version 1.1.0 adds immutable operation correlation to every lifecycle event, completes the public
+watermark callback overloads, compile-checks terminal method declarations, and makes documentation
+reveals resilient to full-page capture and printing.
+
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm
 trusted publishing with provenance. Representative downstream media corpora and high-volume service
