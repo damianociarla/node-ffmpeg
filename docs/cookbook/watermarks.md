@@ -32,3 +32,12 @@ await video
 ```
 
 Input paths are passed directly to the process and must not be shell-quoted.
+
+The callback form accepts an explicit destination with or without settings:
+
+```ts
+video.fnAddWatermark('/media/brand.png', '/media/branded.mp4', (error, output) => {
+  if (error) console.error(error);
+  else console.log(output);
+});
+```

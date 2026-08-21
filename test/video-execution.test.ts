@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { FfmpegError } from '../src/errors.js';
+import type { MediaOperationContext } from '../src/types.js';
 import { effectiveDuration, parseProgress, ProgressStreamParser } from '../src/video.js';
 import { createVideo, watermark } from './helpers.js';
 
@@ -76,6 +77,25 @@ describe('conversion execution and lifecycle', () => {
     expect(events).toEqual(expect.arrayContaining(['stderr', 'progress']));
   });
 
+  it('correlates every lifecycle event with one immutable operation context', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-event-context-'));
+    const destination = join(directory, 'context.mp4');
+    const video = createVideo();
+    const contexts: MediaOperationContext[] = [];
+    video.on('start', (_command, context) => contexts.push(context));
+    video.on('stderr', (_chunk, context) => contexts.push(context));
+    video.on('progress', (_progress, context) => contexts.push(context));
+    video.on('end', (_result, context) => contexts.push(context));
+
+    await video.save(destination);
+
+    expect(contexts.length).toBeGreaterThanOrEqual(4);
+    expect(contexts.every((context) => context === contexts[0])).toBe(true);
+    expect(contexts[0]).toMatchObject({ kind: 'save', destination });
+    expect(contexts[0]?.operationId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(Object.isFrozen(contexts[0])).toBe(true);
+  });
+
   it('supports the legacy success callback', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-callback-'));
     const destination = join(directory, 'callback.mp4');
@@ -136,6 +156,73 @@ describe('conversion execution and lifecycle', () => {
     expect(slowArgs).not.toContain('libx264');
     expect(fastArgs).toContain('libx264');
     expect(fastArgs).not.toContain('-an');
+  });
+
+  it('distinguishes concurrent progress streams by operation ID and destination', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-concurrent-events-'));
+    const slowDestination = join(directory, 'forced-slow-context.mp4');
+    const fastDestination = join(directory, 'fast-context.mp4');
+    const video = createVideo();
+    const started = new Map<string, MediaOperationContext>();
+    const progress = new Map<string, MediaOperationContext>();
+    video.on('start', (_command, context) => started.set(context.destination, context));
+    video.on('progress', (_event, context) => progress.set(context.destination, context));
+
+    await Promise.all([video.save(slowDestination), video.save(fastDestination)]);
+
+    expect([...started.keys()].sort()).toEqual([fastDestination, slowDestination].sort());
+    expect([...progress.keys()].sort()).toEqual([fastDestination, slowDestination].sort());
+    const slowContext = started.get(slowDestination);
+    const fastContext = started.get(fastDestination);
+    expect(slowContext?.operationId).not.toBe(fastContext?.operationId);
+    expect(progress.get(slowDestination)).toBe(slowContext);
+    expect(progress.get(fastDestination)).toBe(fastContext);
+  });
+
+  it('correlates planning failures before a process starts', async () => {
+    const video = createVideo();
+    const failure = new Promise<{ error: unknown; context: MediaOperationContext }>((resolve) => {
+      video.once('error', (error, context) => resolve({ error, context }));
+    });
+    await expect(video.save('-report')).rejects.toMatchObject({ code: 124 });
+    await expect(failure).resolves.toMatchObject({
+      error: { code: 124 },
+      context: { kind: 'save', destination: '-report' },
+    });
+  });
+
+  it('reports normalized destinations and kinds for every preset operation', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-operation-kinds-'));
+
+    const audioVideo = createVideo();
+    const audioContext = new Promise<MediaOperationContext>((resolve) => {
+      audioVideo.once('start', (_command, context) => resolve(context));
+    });
+    await audioVideo.fnExtractSoundToMP3(join(directory, 'sound.wav'));
+    await expect(audioContext).resolves.toMatchObject({
+      kind: 'audio',
+      destination: join(directory, 'sound.mp3'),
+    });
+
+    const framesVideo = createVideo();
+    const framesContext = new Promise<MediaOperationContext>((resolve) => {
+      framesVideo.once('start', (_command, context) => resolve(context));
+    });
+    await framesVideo.fnExtractFrameToJPG(join(directory, 'frames'), { number: 1 });
+    await expect(framesContext).resolves.toMatchObject({
+      kind: 'frames',
+      destination: join(directory, 'frames'),
+    });
+
+    const watermarkVideo = createVideo();
+    const watermarkContext = new Promise<MediaOperationContext>((resolve) => {
+      watermarkVideo.once('start', (_command, context) => resolve(context));
+    });
+    await watermarkVideo.fnAddWatermark(watermark, join(directory, 'watermark.mp4'));
+    await expect(watermarkContext).resolves.toMatchObject({
+      kind: 'watermark',
+      destination: join(directory, 'watermark.mp4'),
+    });
   });
 
   it('does not erase builder changes made while an operation is active', async () => {
@@ -373,6 +460,20 @@ describe('watermark preset', () => {
     const destination = join(directory, 'marked.mp4');
     await new Promise<void>((resolve, reject) => {
       createVideo().fnAddWatermark(watermark, destination, { position: 'SE' }, (error, result) => {
+        if (error) reject(error);
+        else {
+          expect(result).toBe(destination);
+          resolve();
+        }
+      });
+    });
+  });
+
+  it('supports explicit destination and callback without settings', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-watermark-short-callback-'));
+    const destination = join(directory, 'marked.mp4');
+    await new Promise<void>((resolve, reject) => {
+      createVideo().fnAddWatermark(watermark, destination, (error, result) => {
         if (error) reject(error);
         else {
           expect(result).toBe(destination);

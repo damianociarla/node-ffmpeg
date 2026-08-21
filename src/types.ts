@@ -167,6 +167,16 @@ export interface Progress {
   percent?: number;
 }
 
+/** Identifies one terminal operation emitted through a shared Video event stream. */
+export type MediaOperationKind = 'save' | 'audio' | 'frames' | 'watermark';
+
+/** Immutable correlation data passed as the second argument of every Video lifecycle event. */
+export interface MediaOperationContext {
+  readonly operationId: string;
+  readonly kind: MediaOperationKind;
+  readonly destination: string;
+}
+
 export type LegacyCallback<T> = (error: Error | null, result: T | null) => void;
 
 export interface ProcessResult {

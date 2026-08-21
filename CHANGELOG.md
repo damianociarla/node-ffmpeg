@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0 - 2026-08-21
+
+### Added
+
+- Added immutable `MediaOperationContext` values with UUID, operation kind, and destination to every lifecycle event
+- Added compile-only contract tests for every public terminal-method Promise and callback overload
+- Added the missing watermark destination-plus-callback TypeScript overload
+
+### Changed
+
+- Made concurrent lifecycle event streams correlatable while preserving every historical first event argument
+- Kept landing-page reveal content visible during full-page capture, archival, and visual-regression workflows
+- Added print-safe motion overrides and enlarged the header brand target to 44px
+
 ## 1.0.3 - 2026-08-21
 
 ### Fixed

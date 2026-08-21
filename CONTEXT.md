@@ -19,3 +19,7 @@ _Avoid_: Args snapshot, command state
 **Media Operation**:
 One observable FFmpeg execution created from an Operation Plan, including its Promise or callback outcome and lifecycle events.
 _Avoid_: Conversion job, process run
+
+**Operation Context**:
+Immutable public correlation data that identifies one Media Operation and its destination across the shared `Video` event stream.
+_Avoid_: Event metadata, job ID
