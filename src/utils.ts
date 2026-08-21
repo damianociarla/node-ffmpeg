@@ -13,6 +13,10 @@ export function resolveSettings(
   settings: FfmpegSettings = {},
   defaults: { ffmpegPath: string; ffprobePath: string },
 ): ResolvedSettings {
+  const rawSettings: unknown = settings;
+  if (rawSettings === null || typeof rawSettings !== 'object' || Array.isArray(rawSettings)) {
+    throw renderError('invalid_option_value', 'settings');
+  }
   const valid = new Set([
     'encoding',
     'timeout',
@@ -26,6 +30,55 @@ export function resolveSettings(
   ]);
   for (const key of Object.keys(settings)) {
     if (!valid.has(key)) throw renderError('invalid_option_name', key);
+  }
+
+  if (!Buffer.isEncoding(settings.encoding ?? defaultSettings.encoding)) {
+    throw renderError('invalid_option_value', 'encoding');
+  }
+  if (
+    settings.timeout !== undefined &&
+    (!Number.isFinite(settings.timeout) || settings.timeout < 0)
+  ) {
+    throw renderError(
+      'invalid_numeric_option',
+      'timeout',
+      'a finite number greater than or equal to 0',
+    );
+  }
+  if (
+    settings.maxBuffer !== undefined &&
+    (!Number.isSafeInteger(settings.maxBuffer) || settings.maxBuffer <= 0)
+  ) {
+    throw renderError('invalid_numeric_option', 'maxBuffer', 'a positive safe integer');
+  }
+  for (const [name, value] of [
+    ['ffmpegPath', settings.ffmpegPath],
+    ['ffprobePath', settings.ffprobePath],
+  ] as const) {
+    if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+      throw renderError('invalid_option_value', name);
+    }
+  }
+  if (settings.overwrite !== undefined && typeof settings.overwrite !== 'boolean') {
+    throw renderError('invalid_option_value', 'overwrite');
+  }
+  if (settings.cwd !== undefined && (typeof settings.cwd !== 'string' || settings.cwd === '')) {
+    throw renderError('invalid_option_value', 'cwd');
+  }
+  const rawEnvironment = (settings as { env?: unknown }).env;
+  if (
+    rawEnvironment !== undefined &&
+    (rawEnvironment === null || typeof rawEnvironment !== 'object' || Array.isArray(rawEnvironment))
+  ) {
+    throw renderError('invalid_option_value', 'env');
+  }
+  if (
+    settings.signal !== undefined &&
+    (typeof settings.signal !== 'object' ||
+      typeof settings.signal.aborted !== 'boolean' ||
+      typeof settings.signal.addEventListener !== 'function')
+  ) {
+    throw renderError('invalid_option_value', 'signal');
   }
 
   const ffmpegPath = settings.ffmpegPath ?? defaults.ffmpegPath;
@@ -94,5 +147,13 @@ export function isRemoteInput(input: string): boolean {
 }
 
 export function asBitrate(value: string | number): string {
-  return typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(value) ? `${value}k` : value;
+  const text = String(value).trim();
+  if (!/^\d+(?:\.\d+)?(?:[kKmMgG])?$/.test(text) || Number.parseFloat(text) <= 0) {
+    throw renderError(
+      'invalid_numeric_option',
+      'bitrate',
+      'a positive number with an optional K, M, or G suffix',
+    );
+  }
+  return /^\d+(?:\.\d+)?$/.test(text) ? `${text}k` : text;
 }

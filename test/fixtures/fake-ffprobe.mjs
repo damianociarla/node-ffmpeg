@@ -9,6 +9,12 @@ if (input.includes('probe-failure')) {
   console.error('probe failed intentionally');
   process.exit(8);
 }
+if (input.includes('large-json')) {
+  console.log(
+    JSON.stringify({ padding: 'x'.repeat(4096), streams: [], format: { filename: input } }),
+  );
+  process.exit(0);
+}
 console.log(
   JSON.stringify({
     streams: [

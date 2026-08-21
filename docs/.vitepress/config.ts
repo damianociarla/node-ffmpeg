@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
+  lang: 'en-US',
   title: 'node-ffmpeg',
   description: 'A modern, typed Node.js API for FFmpeg.',
   base: '/node-ffmpeg/',
@@ -13,17 +14,50 @@ export default defineConfig({
     optimizeDeps: { esbuildOptions: { target: 'esnext' } },
   },
   head: [
-    ['link', { rel: 'icon', href: 'data:,' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/node-ffmpeg/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#080a08' }],
     ['meta', { property: 'og:title', content: 'node-ffmpeg — typed media pipelines' }],
     [
       'meta',
       {
         property: 'og:description',
-        content: 'A secure, zero-runtime-dependency TypeScript interface for FFmpeg.',
+        content: 'A typed, zero-runtime-dependency TypeScript interface for FFmpeg.',
+      },
+    ],
+    ['meta', { property: 'og:type', content: 'website' }],
+    [
+      'meta',
+      {
+        property: 'og:image',
+        content: 'https://damianociarla.github.io/node-ffmpeg/social-preview.png',
+      },
+    ],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ['meta', { name: 'twitter:title', content: 'node-ffmpeg — typed media pipelines' }],
+    [
+      'meta',
+      {
+        name: 'twitter:description',
+        content: 'A typed, zero-runtime-dependency TypeScript interface for FFmpeg.',
+      },
+    ],
+    [
+      'meta',
+      {
+        name: 'twitter:image',
+        content: 'https://damianociarla.github.io/node-ffmpeg/social-preview.png',
       },
     ],
   ],
+  sitemap: { hostname: 'https://damianociarla.github.io/node-ffmpeg/' },
+  transformHead({ page }) {
+    const route = page.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '');
+    const url = `https://damianociarla.github.io/node-ffmpeg/${route}`;
+    return [
+      ['link', { rel: 'canonical', href: url }],
+      ['meta', { property: 'og:url', content: url }],
+    ];
+  },
   markdown: {
     lineNumbers: true,
     theme: { light: 'github-light', dark: 'vesper' },

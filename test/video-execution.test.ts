@@ -3,7 +3,7 @@ import { mkdtemp, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { parseProgress } from '../src/video.js';
+import { parseProgress, ProgressStreamParser } from '../src/video.js';
 import { createVideo, watermark } from './helpers.js';
 
 describe('conversion execution and lifecycle', () => {
@@ -170,11 +170,38 @@ describe('frame extraction', () => {
     expect(frames.map((frame) => basename(frame))).toEqual(['frame_1.jpg', 'frame_2.jpg']);
   });
 
+  it('does not return matching frames left behind by an earlier run', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-stale-frames-'));
+    await writeFile(join(directory, 'frame_3.jpg'), 'stale');
+    const frames = await createVideo({ overwrite: true }).fnExtractFrameToJPG(directory, {
+      file_name: 'frame',
+    });
+    expect(frames.map((frame) => basename(frame))).toEqual(['frame_1.jpg', 'frame_2.jpg']);
+  });
+
   it.each([0, -1, 101])('rejects invalid percentage %s', async (percentage) => {
     const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-percentage-'));
     await expect(
       createVideo().fnExtractFrameToJPG(directory, { every_n_percentage: percentage }),
     ).rejects.toMatchObject({ code: 107 });
+  });
+
+  it.each([
+    [{ every_n_frames: 0 }, 120],
+    [{ every_n_frames: 1.5 }, 120],
+    [{ every_n_seconds: Number.NaN }, 120],
+    [{ frame_rate: -1 }, 120],
+    [{ number: 0 }, 120],
+    [{ number: 1.5 }, 120],
+    [{ quality: Number.NaN }, 120],
+    [{ start_time: 'tomorrow' }, 121],
+    [{ start_time: '00:99:00' }, 121],
+    [{ duration_time: 0 }, 121],
+  ] as const)('rejects invalid frame setting %o', async (invalidSettings, code) => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-invalid-frame-setting-'));
+    await expect(
+      createVideo().fnExtractFrameToJPG(directory, invalidSettings),
+    ).rejects.toMatchObject({ code });
   });
 
   it('supports both frame callback overloads', async () => {
@@ -227,5 +254,14 @@ describe('progress parsing edge cases', () => {
 
   it('caps percentage at one hundred', () => {
     expect(parseProgress('time=00:00:20.00', 10)?.percent).toBe(100);
+  });
+
+  it('reassembles split lines and emits every update received in one chunk', () => {
+    const parser = new ProgressStreamParser(10);
+    expect(parser.write('frame=1 fps=2 time=00:00:')).toEqual([]);
+    expect(parser.write('01.00 speed=1x\rframe=2 fps=3 time=00:00:02.00 speed=1.5x\r')).toEqual([
+      { frames: 1, fps: 2, time: 1, speed: 1, percent: 10 },
+      { frames: 2, fps: 3, time: 2, speed: 1.5, percent: 20 },
+    ]);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "ffmpeg",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A modern, typed Node.js API for processing media with FFmpeg",
   "keywords": [
     "ffmpeg",
@@ -42,8 +42,12 @@
     "README.md",
     "CHANGELOG.md",
     "SECURITY.md",
+    "RELEASING.md",
     "AUDIT.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -57,7 +61,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint . && tsc --noEmit",
     "test": "vitest run --coverage",
-    "test:integration": "FFMPEG_INTEGRATION=1 vitest run test/real-ffmpeg.test.ts",
+    "test:integration": "node test/run-integration.mjs",
     "test:watch": "vitest",
     "check": "npm run format:check && npm run lint && npm test && npm run build && npm run docs:build && npm run pack:check",
     "pack:check": "node test/cjs-smoke.cjs && npm pack --dry-run",

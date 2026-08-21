@@ -93,16 +93,20 @@ installed FFmpeg build are accepted as inputs.
 
 ## Settings
 
-| Setting       | Default   | Meaning                                                       |
-| ------------- | --------- | ------------------------------------------------------------- |
-| `encoding`    | `utf8`    | Process output encoding                                       |
-| `timeout`     | `0`       | Maximum operation time in milliseconds; `0` disables it       |
-| `maxBuffer`   | 16 MiB    | Retained stdout/stderr tail; reaching it does not kill FFmpeg |
-| `overwrite`   | `false`   | Use `-y`; otherwise `-n` prevents interactive hangs           |
-| `ffmpegPath`  | `ffmpeg`  | FFmpeg executable                                             |
-| `ffprobePath` | `ffprobe` | ffprobe executable                                            |
-| `signal`      | —         | `AbortSignal` used to cancel an operation                     |
-| `cwd`, `env`  | inherited | Child-process working directory and environment               |
+| Setting       | Default   | Meaning                                                  |
+| ------------- | --------- | -------------------------------------------------------- |
+| `encoding`    | `utf8`    | Process output encoding                                  |
+| `timeout`     | `0`       | Maximum operation time in milliseconds; `0` disables it  |
+| `maxBuffer`   | 16 MiB    | Conversion output tail and maximum complete probe output |
+| `overwrite`   | `false`   | Use `-y`; otherwise `-n` prevents interactive hangs      |
+| `ffmpegPath`  | `ffmpeg`  | FFmpeg executable                                        |
+| `ffprobePath` | `ffprobe` | ffprobe executable                                       |
+| `signal`      | —         | `AbortSignal` used to cancel an operation                |
+| `cwd`, `env`  | inherited | Child-process working directory and environment          |
+
+Long-running conversions retain only the most recent `maxBuffer` bytes of stdout and stderr. Probe
+and configuration output must remain complete: if stdout exceeds the limit, the operation fails with
+error `119` instead of parsing a truncated document.
 
 ## API
 

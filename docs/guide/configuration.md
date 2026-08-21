@@ -15,16 +15,16 @@ const video = await ffmpeg(input, {
 });
 ```
 
-| Setting       | Default   | Purpose                                                     |
-| ------------- | --------- | ----------------------------------------------------------- |
-| `ffmpegPath`  | `ffmpeg`  | FFmpeg executable                                           |
-| `ffprobePath` | `ffprobe` | ffprobe executable                                          |
-| `overwrite`   | `false`   | Use `-y`; otherwise `-n` protects existing files            |
-| `timeout`     | `0`       | Maximum operation time in milliseconds; zero disables it    |
-| `maxBuffer`   | 16 MiB    | Retained stdout/stderr tail without terminating the process |
-| `signal`      | —         | AbortSignal for probes and conversions                      |
-| `encoding`    | `utf8`    | Process output encoding                                     |
-| `cwd`, `env`  | inherited | Child working directory and environment                     |
+| Setting       | Default   | Purpose                                                  |
+| ------------- | --------- | -------------------------------------------------------- |
+| `ffmpegPath`  | `ffmpeg`  | FFmpeg executable                                        |
+| `ffprobePath` | `ffprobe` | ffprobe executable                                       |
+| `overwrite`   | `false`   | Use `-y`; otherwise `-n` protects existing files         |
+| `timeout`     | `0`       | Maximum operation time in milliseconds; zero disables it |
+| `maxBuffer`   | 16 MiB    | Conversion output tail and maximum complete probe output |
+| `signal`      | —         | AbortSignal for probes and conversions                   |
+| `encoding`    | `utf8`    | Process output encoding                                  |
+| `cwd`, `env`  | inherited | Child working directory and environment                  |
 
 ## Global executable paths
 
@@ -35,6 +35,10 @@ ffmpeg.ffprobeBin = '/opt/ffmpeg/bin/ffprobe';
 
 When `ffmpegPath` is absolute and no explicit ffprobe override exists, a sibling `ffprobe` binary is
 inferred.
+
+Conversions keep a bounded tail and continue when the limit is reached. Configuration and ffprobe
+stdout cannot be truncated safely, so those operations fail with error `119` when their complete
+output exceeds `maxBuffer`.
 
 ## Cancellation
 

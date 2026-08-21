@@ -39,6 +39,34 @@ describe('factory and probe', () => {
     });
   });
 
+  it('applies the same local input validation to create and the callable factory', () => {
+    expect(() => create('/definitely/missing/create-input.mp4')).toThrow(
+      expect.objectContaining({ code: 103 }),
+    );
+    expect(() => ffmpeg('/definitely/missing/factory-input.mp4')).toThrow(
+      expect.objectContaining({ code: 103 }),
+    );
+  });
+
+  it('does not share configuration across different process environments', async () => {
+    const first = await create(input, {
+      env: { ...process.env, CONFIG_CODEC: 'tenant_one' },
+    });
+    const second = await create(input, {
+      env: { ...process.env, CONFIG_CODEC: 'tenant_two' },
+    });
+    expect(first.info_configuration.codecs.encode).toContain('tenant_one');
+    expect(second.info_configuration.codecs.encode).toContain('tenant_two');
+    expect(second.info_configuration.codecs.encode).not.toContain('tenant_one');
+  });
+
+  it('reports oversized ffprobe JSON without attempting to parse a truncated tail', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-probe-limit-'));
+    const largeInput = join(directory, 'large-json.mp4');
+    await writeFile(largeInput, 'fixture');
+    await expect(create(largeInput, { maxBuffer: 512 })).rejects.toMatchObject({ code: 119 });
+  });
+
   it('keeps stable numeric legacy errors while using real Error instances', () => {
     expect(() => ffmpeg('')).toThrow(FfmpegError);
     try {
@@ -121,7 +149,7 @@ describe('presets', () => {
     const video = await ffmpeg(input);
     video.setWatermark(watermark, { position: 'NE', margin_east: 12, margin_nord: 8 });
     const command = video.getCommand(join(directory, 'watermarked.mp4'));
-    expect(command.args).toContain('overlay=main_w-overlay_w-12:8');
+    expect(command.args).toContain('[0:v][1:v]overlay=main_w-overlay_w-12:8');
     expect(command.args.slice(0, 6)).toEqual(['-n', '-hide_banner', '-i', input, '-i', watermark]);
   });
 

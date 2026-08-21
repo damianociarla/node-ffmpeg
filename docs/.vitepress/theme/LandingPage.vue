@@ -1,20 +1,48 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
+import { VPNavBarSearch } from 'vitepress/theme';
 
 const { site } = useData();
-const copied = ref(false);
+const copyStatus = ref<'idle' | 'copied' | 'error'>('idle');
 const menuOpen = ref(false);
 const base = computed(() => site.value.base);
 let observer: IntersectionObserver | undefined;
+let copyTimer: number | undefined;
+
+if (typeof document !== 'undefined') document.documentElement.classList.add('reveal-ready');
+
+function fallbackCopy(value: string): void {
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.append(textarea);
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+  if (!copied) throw new Error('Copy command was rejected');
+}
 
 async function copyInstall(): Promise<void> {
-  await navigator.clipboard.writeText('npm install ffmpeg');
-  copied.value = true;
-  window.setTimeout(() => (copied.value = false), 1_600);
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText('npm install ffmpeg');
+    else fallbackCopy('npm install ffmpeg');
+    copyStatus.value = 'copied';
+  } catch {
+    copyStatus.value = 'error';
+  }
+  if (copyTimer) window.clearTimeout(copyTimer);
+  copyTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1_800);
 }
 
 onMounted(() => {
+  const revealElements = document.querySelectorAll('.reveal');
+  if (!('IntersectionObserver' in window)) {
+    revealElements.forEach((element) => element.classList.add('is-visible'));
+    return;
+  }
   observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
@@ -23,14 +51,18 @@ onMounted(() => {
     },
     { threshold: 0.18 },
   );
-  document.querySelectorAll('.reveal').forEach((element) => observer?.observe(element));
+  revealElements.forEach((element) => observer?.observe(element));
 });
 
-onBeforeUnmount(() => observer?.disconnect());
+onBeforeUnmount(() => {
+  observer?.disconnect();
+  if (copyTimer) window.clearTimeout(copyTimer);
+});
 </script>
 
 <template>
   <div class="landing-shell">
+    <a class="skip-link" href="#main-content">Skip to content</a>
     <header class="landing-nav">
       <a class="landing-brand" :href="base" aria-label="node-ffmpeg home">
         <span class="brand-glyph" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -49,11 +81,13 @@ onBeforeUnmount(() => observer?.disconnect());
         <a :href="withBase('/guide/getting-started')">Guide</a>
         <a :href="withBase('/api/video')">API</a>
         <a :href="withBase('/cookbook/frames')">Cookbook</a>
+        <a :href="withBase('/guide/migration')">Migration</a>
+        <VPNavBarSearch class="landing-search" />
         <a class="github-link" href="https://github.com/damianociarla/node-ffmpeg">GitHub ↗</a>
       </nav>
     </header>
 
-    <main>
+    <main id="main-content" tabindex="-1">
       <section class="hero-section">
         <div class="hero-grid" aria-hidden="true"></div>
         <div class="hero-copy">
@@ -70,7 +104,13 @@ onBeforeUnmount(() => observer?.disconnect());
             <a class="primary-action" :href="withBase('/guide/getting-started')">Start building</a>
             <button class="install-command" type="button" @click="copyInstall">
               <code>npm i ffmpeg</code>
-              <span>{{ copied ? 'Copied' : 'Copy' }}</span>
+              <span aria-live="polite">{{
+                copyStatus === 'copied'
+                  ? 'Copied'
+                  : copyStatus === 'error'
+                    ? 'Select & copy'
+                    : 'Copy'
+              }}</span>
             </button>
           </div>
         </div>

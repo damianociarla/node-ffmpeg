@@ -31,4 +31,6 @@ of triggering an unhandled EventEmitter exception.
 ## Process results
 
 The `end` event receives the executable, exact arguments, exit code, and retained stdout/stderr.
-Output is tailed to `maxBuffer`; exceeding that limit never kills a long conversion.
+Conversion output is tailed to `maxBuffer`; exceeding that limit never kills a long conversion. Probe
+and configuration operations require complete stdout and fail with error `119` when the same limit is
+exceeded.

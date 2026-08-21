@@ -135,7 +135,13 @@ describe('audio, metadata and custom options', () => {
     expect(argsOf((video) => video.setDisableAudio())).toContain('-an');
   });
 
-  it.each([0, 3, -1])('rejects invalid channel count %s', (channels) => {
+  it('supports multichannel audio layouts', () => {
+    expect(argsOf((video) => video.setAudioChannels(6))).toEqual(
+      expect.arrayContaining(['-ac', '6']),
+    );
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])('rejects invalid channel count %s', (channels) => {
     expect(() => createVideo().setAudioChannels(channels)).toThrow(
       expect.objectContaining({ code: 105 }),
     );
@@ -159,9 +165,7 @@ describe('audio, metadata and custom options', () => {
     expect(argsOf((video) => video.setThreads(3.9))).toEqual(
       expect.arrayContaining(['-threads', '3']),
     );
-    expect(argsOf((video) => video.setThreads(-4))).toEqual(
-      expect.arrayContaining(['-threads', '0']),
-    );
+    expect(() => createVideo().setThreads(-4)).toThrow(expect.objectContaining({ code: 120 }));
   });
 
   it('preserves duplicate custom options, additional inputs and filter order', () => {
@@ -193,15 +197,15 @@ describe('audio, metadata and custom options', () => {
 
 describe('watermark placement', () => {
   it.each([
-    ['NW', 'overlay=4:1'],
-    ['NC', 'overlay=(main_w-overlay_w)/2:1'],
-    ['NE', 'overlay=main_w-overlay_w-3:1'],
-    ['CW', 'overlay=4:(main_h-overlay_h)/2'],
-    ['C', 'overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2'],
-    ['CE', 'overlay=main_w-overlay_w-3:(main_h-overlay_h)/2'],
-    ['SW', 'overlay=4:main_h-overlay_h-2'],
-    ['SC', 'overlay=(main_w-overlay_w)/2:main_h-overlay_h-2'],
-    ['SE', 'overlay=main_w-overlay_w-3:main_h-overlay_h-2'],
+    ['NW', '[0:v][1:v]overlay=4:1'],
+    ['NC', '[0:v][1:v]overlay=(main_w-overlay_w)/2:1'],
+    ['NE', '[0:v][1:v]overlay=main_w-overlay_w-3:1'],
+    ['CW', '[0:v][1:v]overlay=4:(main_h-overlay_h)/2'],
+    ['C', '[0:v][1:v]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2'],
+    ['CE', '[0:v][1:v]overlay=main_w-overlay_w-3:(main_h-overlay_h)/2'],
+    ['SW', '[0:v][1:v]overlay=4:main_h-overlay_h-2'],
+    ['SC', '[0:v][1:v]overlay=(main_w-overlay_w)/2:main_h-overlay_h-2'],
+    ['SE', '[0:v][1:v]overlay=main_w-overlay_w-3:main_h-overlay_h-2'],
   ] as const)('uses conventional coordinates for %s', (position, expected) => {
     const args = argsOf((video) =>
       video.setWatermark(watermark, {
@@ -217,7 +221,7 @@ describe('watermark placement', () => {
 
   it('defaults to south-west', () => {
     expect(argsOf((video) => video.setWatermark(watermark))).toContain(
-      'overlay=0:main_h-overlay_h-0',
+      '[0:v][1:v]overlay=0:main_h-overlay_h-0',
     );
   });
 
@@ -233,5 +237,28 @@ describe('watermark placement', () => {
   it('keeps the original input before the watermark input', () => {
     const args = argsOf((video) => video.setWatermark(watermark));
     expect(args.slice(2, 6)).toEqual(['-i', input, '-i', watermark]);
+  });
+
+  it('labels the watermark correctly when other inputs are present', () => {
+    const args = argsOf((video) => video.addInput('second.mp4').setWatermark(watermark));
+    expect(args).toContain('[0:v][2:v]overlay=0:main_h-overlay_h-0');
+  });
+
+  it.each([
+    ['video bitrate', () => createVideo().setVideoBitRate(-1)],
+    ['video frame rate', () => createVideo().setVideoFrameRate(Number.NaN)],
+    ['video start time', () => createVideo().setVideoStartTime('invalid')],
+    ['video duration', () => createVideo().setVideoDuration(0)],
+    ['video aspect', () => createVideo().setVideoAspectRatio('wide')],
+    ['numeric video aspect', () => createVideo().setVideoAspectRatio(Number.NaN)],
+    ['video quality', () => createVideo().setVideoQuality(-1)],
+    ['empty video quality', () => createVideo().setVideoQuality('')],
+    ['audio frequency', () => createVideo().setAudioFrequency(0)],
+    ['audio bitrate', () => createVideo().setAudioBitRate('fast')],
+    ['audio quality', () => createVideo().setAudioQuality(Number.NaN)],
+    ['threads', () => createVideo().setThreads(Number.NaN)],
+    ['watermark margin', () => createVideo().setWatermark(watermark, { margin_east: -1 })],
+  ])('rejects invalid %s values', (_name, operation) => {
+    expect(operation).toThrow();
   });
 });

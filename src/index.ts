@@ -20,21 +20,13 @@ interface FfmpegFactory {
   ffprobeBin: string;
 }
 
-const configurationCache = new Map<string, ReturnType<typeof inspectConfiguration>>();
-
-async function createVideo(input: string, settings: FfmpegSettings = {}): Promise<Video> {
+async function initializeVideo(input: string, settings: FfmpegSettings): Promise<Video> {
   const resolved = resolveSettings(settings, {
     ffmpegPath: ffmpeg.bin,
     ffprobePath: ffmpeg.ffprobeBin,
   });
-  let configurationPromise = configurationCache.get(resolved.ffmpegPath);
-  if (!configurationPromise) {
-    configurationPromise = inspectConfiguration(resolved);
-    configurationCache.set(resolved.ffmpegPath, configurationPromise);
-    void configurationPromise.catch(() => configurationCache.delete(resolved.ffmpegPath));
-  }
   const [configuration, metadata] = await Promise.all([
-    configurationPromise,
+    inspectConfiguration(resolved),
     probeMedia(input, resolved),
   ]);
   return new Video(input, resolved, configuration, metadata);
@@ -55,7 +47,7 @@ const factory = function (
   validateInput(input);
   const callback = typeof settingsOrCallback === 'function' ? settingsOrCallback : maybeCallback;
   const settings = typeof settingsOrCallback === 'function' ? {} : (settingsOrCallback ?? {});
-  const promise = createVideo(input, settings);
+  const promise = initializeVideo(input, settings);
   if (!callback) return promise;
   void promise.then(
     (video) => callback(null, video),
@@ -67,5 +59,8 @@ factory.bin = 'ffmpeg';
 factory.ffprobeBin = 'ffprobe';
 
 export const ffmpeg = factory;
-export const create = createVideo;
+export function create(input: string, settings: FfmpegSettings = {}): Promise<Video> {
+  validateInput(input);
+  return initializeVideo(input, settings);
+}
 export default ffmpeg;
