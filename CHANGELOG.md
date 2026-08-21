@@ -4,7 +4,7 @@
 
 ### Testing and release engineering
 
-- Replaced the structural screenshot smoke test with versioned full-page visual baselines
+- Replaced the structural screenshot smoke test with versioned, platform-stable full-page visual baselines
 - Added separate Chromium projects for a 1440x900 desktop and a 390x844 mobile viewport
 - Removed the fixed visual-test delay in favor of deterministic reduced-motion, font, and network readiness
 - Added section geometry and horizontal-overflow assertions alongside pixel comparisons

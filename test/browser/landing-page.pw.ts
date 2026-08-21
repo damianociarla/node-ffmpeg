@@ -53,7 +53,7 @@ test('landing page matches its full-page visual baseline', async ({ page }) => {
   );
   expect(hasHorizontalOverflow).toBe(false);
 
-  await expect(page).toHaveScreenshot('landing-full-page.png', {
+  await expect(page).toHaveScreenshot(`landing-full-page-${process.platform}.png`, {
     animations: 'disabled',
     caret: 'hide',
     fullPage: true,
