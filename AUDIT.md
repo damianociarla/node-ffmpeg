@@ -119,6 +119,10 @@ desktop and mobile, adds layout diagnostics without arbitrary delays, and preser
 reports, traces, screenshots, and diffs when protected CI or trusted publishing detects a visual
 change.
 
+Version 1.1.3 tightens visual comparisons to an absolute 500-pixel budget and explicitly denies
+install scripts for every resolved `fsevents` version, keeping the visual and dependency policies
+precise as the toolchain evolves.
+
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm
 trusted publishing with provenance. Representative downstream media corpora and high-volume service
