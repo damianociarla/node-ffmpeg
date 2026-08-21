@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useData, withBase } from 'vitepress';
 import { VPNavBarSearch } from 'vitepress/theme';
 
@@ -7,7 +7,6 @@ const { site } = useData();
 const copyStatus = ref<'idle' | 'copied' | 'error'>('idle');
 const menuOpen = ref(false);
 const base = computed(() => site.value.base);
-let observer: IntersectionObserver | undefined;
 let copyTimer: number | undefined;
 
 function fallbackCopy(value: string): void {
@@ -35,27 +34,7 @@ async function copyInstall(): Promise<void> {
   copyTimer = window.setTimeout(() => (copyStatus.value = 'idle'), 1_800);
 }
 
-onMounted(() => {
-  document.documentElement.classList.add('reveal-ready');
-  const revealElements = document.querySelectorAll('.reveal');
-  if (!('IntersectionObserver' in window)) {
-    revealElements.forEach((element) => element.classList.add('is-visible'));
-    return;
-  }
-  observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) entry.target.classList.add('is-visible');
-      }
-    },
-    { threshold: 0.18 },
-  );
-  revealElements.forEach((element) => observer?.observe(element));
-});
-
 onBeforeUnmount(() => {
-  document.documentElement.classList.remove('reveal-ready');
-  observer?.disconnect();
   if (copyTimer) window.clearTimeout(copyTimer);
 });
 </script>

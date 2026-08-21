@@ -5,6 +5,8 @@ docs/.vitepress/cache/
 docs/.vitepress/dist/
 .playwright-cli/
 output/playwright/
+playwright-report/
+test-results/
 *.tgz
 .DS_Store
 .idea/
