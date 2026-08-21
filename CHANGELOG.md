@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.1 - 2026-08-21
+
+### Fixed
+
+- Removed scroll-triggered transforms from documentation sections so stitched full-page screenshots cannot duplicate or tear content
+- Kept the hero entrance and interaction motion while making every content section compositionally stable
+
+### Testing and release engineering
+
+- Added a real Chromium full-page capture test with stable-style and landmark-content assertions
+- Added a consumer TypeScript compilation test against the package produced by `npm pack`
+- Required Chromium visual verification in pull-request, protected-main, and trusted-publish checks
+
 ## 1.1.0 - 2026-08-21
 
 ### Added

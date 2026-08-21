@@ -58,6 +58,7 @@ jobs:
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - run: npm run check
       - name: Verify tag and package versions match
         env:

@@ -110,6 +110,10 @@ Version 1.1.0 adds immutable operation correlation to every lifecycle event, com
 watermark callback overloads, compile-checks terminal method declarations, and makes documentation
 reveals resilient to full-page capture and printing.
 
+Version 1.1.1 removes the remaining scroll-triggered compositing from documentation content, adds a
+real Chromium full-page capture regression, and compiles a consumer against the assembled npm
+tarball so package exports and declarations are verified together.
+
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm
 trusted publishing with provenance. Representative downstream media corpora and high-volume service
