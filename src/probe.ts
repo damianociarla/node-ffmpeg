@@ -21,8 +21,8 @@ export async function inspectConfiguration(
   settings: ResolvedSettings,
 ): Promise<FfmpegConfiguration> {
   const [formatsResult, encodersResult] = await Promise.all([
-    runProcess(settings.ffmpegPath, ['-hide_banner', '-formats'], settings),
-    runProcess(settings.ffmpegPath, ['-hide_banner', '-encoders'], settings),
+    runProcess(settings.ffmpegPath, ['-hide_banner', '-formats'], settings, { stdout: 'full' }),
+    runProcess(settings.ffmpegPath, ['-hide_banner', '-encoders'], settings, { stdout: 'full' }),
   ]);
   const formatsText = `${formatsResult.stdout}\n${formatsResult.stderr}`;
   const encodersText = `${encodersResult.stdout}\n${encodersResult.stderr}`;
@@ -73,6 +73,7 @@ export async function probeMedia(
       input,
     ],
     settings,
+    { stdout: 'full' },
   );
 
   let raw: FfprobeResult;

@@ -7,8 +7,8 @@ be used for new deployments because it constructs shell commands from applicatio
 
 ## Reporting a vulnerability
 
-Please use GitHub private vulnerability reporting for this repository. If that feature is not yet
-enabled, contact the maintainer privately and do not open a public issue containing exploit details.
+Please use GitHub private vulnerability reporting for this repository. Do not open a public issue
+containing exploit details.
 
 Include the affected version, platform, FFmpeg version, reproduction steps, and the security impact.
 

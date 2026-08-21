@@ -23,6 +23,11 @@ const definitions = {
   process_timeout: [116, 'FFmpeg timed out after %s ms'],
   process_aborted: [117, 'FFmpeg was aborted'],
   invalid_probe_output: [118, 'ffprobe returned invalid JSON'],
+  process_output_limit: [119, 'Process stdout exceeded maxBuffer (%s bytes)'],
+  invalid_numeric_option: [120, 'The option "%s" must be %s'],
+  invalid_time: [121, 'The %s value "%s" is invalid'],
+  invalid_aspect_ratio: [122, 'The aspect ratio "%s" is invalid'],
+  invalid_option_value: [123, 'The value supplied for option "%s" is invalid'],
 } as const;
 
 export type ErrorName = keyof typeof definitions;

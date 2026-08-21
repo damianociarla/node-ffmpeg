@@ -9,12 +9,12 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Node 24
+  quality:
+    name: Quality / Node 24 / Ubuntu
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 24
           cache: npm
@@ -23,24 +23,62 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run docs:build
       - run: npm run pack:check
 
-  ffmpeg:
-    name: Real FFmpeg
-    runs-on: ubuntu-latest
+  unit:
+    name: Unit / Node ${{ matrix.node }} / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
+        os: [ubuntu-latest, macos-latest]
+        exclude:
+          - node: 24
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
           cache: npm
-      - name: Ensure FFmpeg is available
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+  ffmpeg:
+    name: FFmpeg / Node ${{ matrix.node }} / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [24, 26]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Install FFmpeg on Ubuntu
+        if: runner.os == 'Linux'
         run: |
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
             sudo apt-get update
             sudo apt-get install --yes ffmpeg
           fi
-          ffmpeg -version
-          ffprobe -version
+      - name: Install FFmpeg on macOS
+        if: runner.os == 'macOS'
+        run: command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null || brew install ffmpeg
+      - name: Install FFmpeg on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue) -or -not (Get-Command ffprobe -ErrorAction SilentlyContinue)) {
+            choco install ffmpeg --yes --no-progress
+          }
+      - run: ffmpeg -version
+      - run: ffprobe -version
       - run: npm ci
       - run: npm run test:integration

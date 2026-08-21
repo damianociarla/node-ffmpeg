@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
-import { mkdir, readdir } from 'node:fs/promises';
+import { mkdir, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { renderError } from './errors.js';
 import { displayCommand, runProcess } from './process.js';
@@ -59,6 +59,33 @@ interface VideoEvents {
   error: [error: unknown];
 }
 
+interface FileFingerprint {
+  size: number;
+  mtimeMs: number;
+  ctimeMs: number;
+}
+
+export class ProgressStreamParser {
+  private remainder = '';
+
+  constructor(private readonly duration: number) {}
+
+  write(chunk: string): Progress[] {
+    const parts = `${this.remainder}${chunk}`.split(/\r\n|[\r\n]/);
+    this.remainder = parts.pop() ?? '';
+    if (this.remainder.length > 64 * 1024) this.remainder = this.remainder.slice(-64 * 1024);
+    return parts
+      .map((line) => parseProgress(line, this.duration))
+      .filter((progress): progress is Progress => progress !== undefined);
+  }
+
+  flush(): Progress[] {
+    const progress = parseProgress(this.remainder, this.duration);
+    this.remainder = '';
+    return progress ? [progress] : [];
+  }
+}
+
 const positions = new Set(['NE', 'NC', 'NW', 'SE', 'SC', 'SW', 'C', 'CE', 'CW']);
 
 function settle<T>(promise: Promise<T>, callback?: LegacyCallback<T>): Promise<T> | void {
@@ -69,8 +96,44 @@ function settle<T>(promise: Promise<T>, callback?: LegacyCallback<T>): Promise<T
   );
 }
 
-function numericTime(value: string | number): number {
-  return durationToSeconds(value);
+function numericTime(value: string | number, name: string, allowZero: boolean): number {
+  let validText = typeof value === 'number';
+  if (typeof value === 'string') {
+    validText = /^\d+(?:\.\d+)?$/.test(value);
+    const clock = /^(\d+):(\d{2}):(\d{2}(?:\.\d+)?)$/.exec(value);
+    if (clock) validText = Number(clock[2]) < 60 && Number(clock[3]) < 60;
+  }
+  const seconds = durationToSeconds(value);
+  if (!validText || !Number.isFinite(seconds) || seconds < 0 || (!allowZero && seconds === 0)) {
+    throw renderError('invalid_time', name, value);
+  }
+  return seconds;
+}
+
+function finiteNumber(value: string | number, name: string, minimum = 0): number {
+  if (typeof value === 'string' && value.trim() === '') {
+    throw renderError(
+      'invalid_numeric_option',
+      name,
+      `a finite number greater than or equal to ${minimum}`,
+    );
+  }
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric) || numeric < minimum) {
+    throw renderError(
+      'invalid_numeric_option',
+      name,
+      `a finite number greater than or equal to ${minimum}`,
+    );
+  }
+  return numeric;
+}
+
+function positiveNumber(value: number, name: string): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw renderError('invalid_numeric_option', name, 'a finite number greater than 0');
+  }
+  return value;
 }
 
 export class Video extends EventEmitter<VideoEvents> {
@@ -144,32 +207,41 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   setVideoBitRate(bitrate: string | number): this {
+    asBitrate(bitrate);
     (this.options.video ??= {}).bitrate = bitrate;
     return this;
   }
 
   setVideoFrameRate(framerate: number): this {
-    (this.options.video ??= {}).framerate = framerate;
+    (this.options.video ??= {}).framerate = positiveNumber(framerate, 'video frame rate');
     return this;
   }
 
   setVideoStartTime(time: string | number): this {
-    (this.options.video ??= {}).startTime = numericTime(time);
+    (this.options.video ??= {}).startTime = numericTime(time, 'start time', true);
     return this;
   }
 
   setVideoDuration(duration: string | number): this {
-    (this.options.video ??= {}).duration = numericTime(duration);
+    (this.options.video ??= {}).duration = numericTime(duration, 'duration', false);
     return this;
   }
 
   setVideoAspectRatio(aspect: string | number): this {
-    let value: string | number = aspect;
-    if (typeof aspect === 'string') {
+    let value: string | number;
+    if (aspect === 'source') {
+      value = this.metadata.video.aspect.string ?? '';
+      if (!value) throw renderError('invalid_aspect_ratio', aspect);
+    } else if (typeof aspect === 'string') {
       const match = /^(\d+):(\d+)$/.exec(aspect);
-      value = match
-        ? `${Number(match[1])}:${Number(match[2])}`
-        : (this.metadata.video.aspect.string ?? aspect);
+      if (!match || Number(match[1]) <= 0 || Number(match[2]) <= 0) {
+        throw renderError('invalid_aspect_ratio', aspect);
+      }
+      value = `${Number(match[1])}:${Number(match[2])}`;
+    } else {
+      if (!Number.isFinite(aspect) || aspect <= 0)
+        throw renderError('invalid_aspect_ratio', aspect);
+      value = aspect;
     }
     (this.options.video ??= {}).aspect = value;
     return this;
@@ -191,7 +263,7 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   setVideoQuality(quality: string | number): this {
-    (this.options.video ??= {}).quality = quality;
+    (this.options.video ??= {}).quality = finiteNumber(quality, 'video quality');
     return this;
   }
 
@@ -211,23 +283,26 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   setAudioFrequency(frequency: number): this {
-    (this.options.audio ??= {}).frequency = frequency;
+    (this.options.audio ??= {}).frequency = positiveNumber(frequency, 'audio frequency');
     return this;
   }
 
   setAudioChannels(channels: number): this {
-    if (channels !== 1 && channels !== 2) throw renderError('audio_channel_is_invalid', channels);
+    if (!Number.isSafeInteger(channels) || channels <= 0) {
+      throw renderError('audio_channel_is_invalid', channels);
+    }
     (this.options.audio ??= {}).channels = channels;
     return this;
   }
 
   setAudioBitRate(bitrate: string | number): this {
+    asBitrate(bitrate);
     (this.options.audio ??= {}).bitrate = bitrate;
     return this;
   }
 
   setAudioQuality(quality: string | number): this {
-    (this.options.audio ??= {}).quality = quality;
+    (this.options.audio ??= {}).quality = finiteNumber(quality, 'audio quality');
     return this;
   }
 
@@ -243,7 +318,14 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   setThreads(threads: number): this {
-    this.options.threads = Math.max(0, Math.trunc(threads));
+    if (!Number.isFinite(threads) || threads < 0) {
+      throw renderError(
+        'invalid_numeric_option',
+        'threads',
+        'a finite number greater than or equal to 0',
+      );
+    }
+    this.options.threads = Math.trunc(threads);
     return this;
   }
 
@@ -251,6 +333,14 @@ export class Video extends EventEmitter<VideoEvents> {
     if (!existsSync(watermarkPath)) throw renderError('invalid_watermark', watermarkPath);
     const position = settings.position ?? 'SW';
     if (!positions.has(position)) throw renderError('invalid_watermark_position', position);
+    for (const [name, value] of [
+      ['margin_nord', settings.margin_nord],
+      ['margin_sud', settings.margin_sud],
+      ['margin_east', settings.margin_east],
+      ['margin_west', settings.margin_west],
+    ] as const) {
+      if (value !== undefined) finiteNumber(value, name);
+    }
     (this.options.video ??= {}).watermark = {
       path: watermarkPath,
       overlay: watermarkOverlay(position, settings),
@@ -377,9 +467,14 @@ export class Video extends EventEmitter<VideoEvents> {
     const video = this.options.video;
     const audio = this.options.audio;
     const allInputs = [...this.inputs];
-    if (video?.watermark) allInputs.push(video.watermark.path);
+    const filters: string[] = [];
+    if (video?.watermark) {
+      const watermarkInput = allInputs.length;
+      allInputs.push(video.watermark.path);
+      filters.push(`[0:v][${watermarkInput}:v]overlay=${video.watermark.overlay}`);
+    }
     for (const input of allInputs) args.push('-i', input);
-    const filters = [...this.filtersComplex];
+    filters.push(...this.filtersComplex);
 
     if (video?.disabled) args.push('-vn');
     else if (video) {
@@ -391,9 +486,6 @@ export class Video extends EventEmitter<VideoEvents> {
       if (video.duration !== undefined) args.push('-t', String(video.duration));
       if (video.aspect !== undefined) args.push('-aspect', String(video.aspect));
       if (video.quality !== undefined) args.push('-q:v', String(video.quality));
-      if (video.watermark) {
-        filters.push(`overlay=${video.watermark.overlay}`);
-      }
       if (video.size) {
         const dimension = this.calculateDimension(video);
         args.push('-s', `${dimension.width}x${dimension.height}`);
@@ -474,10 +566,34 @@ export class Video extends EventEmitter<VideoEvents> {
     if (
       settings.every_n_percentage !== undefined &&
       settings.every_n_percentage !== null &&
-      (settings.every_n_percentage <= 0 || settings.every_n_percentage > 100)
+      (!Number.isFinite(settings.every_n_percentage) ||
+        settings.every_n_percentage <= 0 ||
+        settings.every_n_percentage > 100)
     ) {
       throw renderError('extract_frame_invalid_everyN_options');
     }
+    for (const [name, value] of [
+      ['every_n_frames', settings.every_n_frames],
+      ['every_n_seconds', settings.every_n_seconds],
+    ] as const) {
+      if (value !== undefined && value !== null) positiveNumber(value, name);
+    }
+    if (
+      settings.every_n_frames !== undefined &&
+      settings.every_n_frames !== null &&
+      !Number.isSafeInteger(settings.every_n_frames)
+    ) {
+      throw renderError('invalid_numeric_option', 'every_n_frames', 'a positive safe integer');
+    }
+    if (settings.frame_rate !== undefined && settings.frame_rate !== null) {
+      positiveNumber(settings.frame_rate, 'frame_rate');
+    }
+    if (settings.number !== undefined && settings.number !== null) {
+      if (!Number.isSafeInteger(settings.number) || settings.number <= 0) {
+        throw renderError('invalid_numeric_option', 'number', 'a positive safe integer');
+      }
+    }
+    if (settings.quality !== undefined) finiteNumber(settings.quality, 'quality');
 
     await mkdir(destinationFolder, { recursive: true });
     const size =
@@ -491,13 +607,16 @@ export class Video extends EventEmitter<VideoEvents> {
       .replace(/%[a-z]/gi, '');
     fileName = `${basename(fileName, extname(fileName))}_%d.jpg`;
     const outputPattern = join(destinationFolder, fileName);
+    const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('%d', '\\d+');
+    const matcher = new RegExp(`^${escaped}$`);
+    const before = await frameFingerprints(destinationFolder, matcher);
     const args = [this.settings.overwrite ? '-y' : '-n', '-hide_banner'];
     if (settings.start_time !== undefined && settings.start_time !== null) {
-      args.push('-ss', String(numericTime(settings.start_time)));
+      args.push('-ss', String(numericTime(settings.start_time, 'start_time', true)));
     }
     args.push('-i', this.file_path);
     if (settings.duration_time !== undefined && settings.duration_time !== null) {
-      args.push('-t', String(numericTime(settings.duration_time)));
+      args.push('-t', String(numericTime(settings.duration_time, 'duration_time', false)));
     }
     if (settings.frame_rate !== undefined && settings.frame_rate !== null) {
       args.push('-r', String(settings.frame_rate));
@@ -526,10 +645,17 @@ export class Video extends EventEmitter<VideoEvents> {
     args.push('-q:v', String(settings.quality ?? 2), outputPattern);
     await this.execute(args);
 
-    const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('%d', '\\d+');
-    const matcher = new RegExp(`^${escaped}$`);
-    return (await readdir(destinationFolder))
-      .filter((entry) => matcher.test(entry))
+    const after = await frameFingerprints(destinationFolder, matcher);
+    return [...after.entries()]
+      .filter(([entry, fingerprint]) => {
+        const previous = before.get(entry);
+        return (
+          previous?.size !== fingerprint.size ||
+          previous.mtimeMs !== fingerprint.mtimeMs ||
+          previous.ctimeMs !== fingerprint.ctimeMs
+        );
+      })
+      .map(([entry]) => entry)
       .sort((left, right) => left.localeCompare(right, undefined, { numeric: true }))
       .map((entry) => join(destinationFolder, entry));
   }
@@ -537,19 +663,24 @@ export class Video extends EventEmitter<VideoEvents> {
   private async execute(args: string[]): Promise<ProcessResult> {
     const command = this.settings.ffmpegPath;
     const display = displayCommand(command, args);
+    const progressParser = new ProgressStreamParser(this.metadata.duration.seconds);
+    const emitProgress = (progress: Progress): void => {
+      this.emit('progress', progress);
+    };
     this.emit('start', display);
     try {
       const result = await runProcess(command, args, this.settings, {
         onStderr: (chunk) => {
           this.emit('stderr', chunk);
-          const progress = parseProgress(chunk, this.metadata.duration.seconds);
-          if (progress) this.emit('progress', progress);
+          progressParser.write(chunk).forEach(emitProgress);
         },
       });
+      progressParser.flush().forEach(emitProgress);
       this.emit('end', result);
       this.reset();
       return result;
     } catch (error) {
+      progressParser.flush().forEach(emitProgress);
       if (this.listenerCount('error') > 0) this.emit('error', error);
       this.reset();
       throw error;
@@ -562,6 +693,29 @@ export class Video extends EventEmitter<VideoEvents> {
     this.filtersComplex = [];
     this.options = {};
   }
+}
+
+async function frameFingerprints(
+  directory: string,
+  matcher: RegExp,
+): Promise<Map<string, FileFingerprint>> {
+  const entries = (await readdir(directory)).filter((entry) => matcher.test(entry));
+  const fingerprints = new Map<string, FileFingerprint>();
+  await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const details = await stat(join(directory, entry));
+        fingerprints.set(entry, {
+          size: details.size,
+          mtimeMs: details.mtimeMs,
+          ctimeMs: details.ctimeMs,
+        });
+      } catch {
+        // A concurrently removed file is not an output of this run.
+      }
+    }),
+  );
+  return fingerprints;
 }
 
 function watermarkOverlay(position: string, settings: WatermarkSettings): string {

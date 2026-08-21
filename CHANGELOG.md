@@ -1,6 +1,26 @@
 # Changelog
 
-## 1.0.0 - Unreleased
+## 1.0.1 - 2026-08-21
+
+### Fixed
+
+- Removed cross-request FFmpeg configuration caching that could mix environments, working directories, abort signals, and timeouts
+- Applied identical input validation to `create()` and the callable factory
+- Replaced repeated string concatenation with bounded byte collectors and preserved complete ffprobe JSON
+- Reassembled stderr lines before progress parsing so split and batched updates are not lost
+- Excluded stale matching files from frame extraction results
+- Added strict runtime validation for timing, rates, quality, bitrate, channels, threads, frame selectors, and watermark margins
+- Bound watermark filters to explicit input stream labels when additional inputs are present
+- Preserved FFmpeg diagnostics on timeout and abort, and terminated descendant process trees
+
+### Security and release engineering
+
+- Added trusted npm publishing through GitHub Actions OIDC with automatic provenance
+- Pinned every third-party GitHub Action to an immutable commit SHA
+- Added Node 24 and 26 integration coverage across Linux, macOS, and Windows
+- Added a branded favicon, social preview, canonical metadata, sitemap, accessible landing navigation, progressive reveal behavior, and a custom 404 page
+
+## 1.0.0 - 2026-08-20
 
 ### Added
 

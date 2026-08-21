@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { mkdir, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { dirname } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -24,11 +25,15 @@ if (args.includes('-formats')) {
 }
 
 if (args.includes('-encoders')) {
+  if (process.env.CONFIG_DELAY) {
+    await new Promise((resolve) => setTimeout(resolve, Number(process.env.CONFIG_DELAY)));
+  }
   console.log('Encoders:');
   console.log(' V..... libx264 H.264');
   console.log(' A..... libmp3lame MP3');
   console.log(' A..... aac AAC');
   console.log(' V..... mjpeg Motion JPEG');
+  if (process.env.CONFIG_CODEC) console.log(` V..... ${process.env.CONFIG_CODEC} Test codec`);
   process.exit(0);
 }
 
@@ -39,6 +44,14 @@ if (output.includes('forced-failure')) {
   process.exit(9);
 }
 if (output.includes('forced-slow')) {
+  console.error('diagnostic before slow process');
+  await new Promise((resolve) => setTimeout(resolve, 1_000));
+}
+if (output.includes('process-tree')) {
+  const marker = `${output}.child`;
+  const script = `setTimeout(() => require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'alive'), 300)`;
+  spawn(process.execPath, ['-e', script], { stdio: 'ignore' });
+  console.error('spawned descendant');
   await new Promise((resolve) => setTimeout(resolve, 1_000));
 }
 

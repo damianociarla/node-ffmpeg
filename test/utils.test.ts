@@ -76,6 +76,28 @@ describe('settings resolution', () => {
       expect.objectContaining({ code: 102 }),
     );
   });
+
+  it.each([
+    { encoding: 'not-an-encoding' },
+    { timeout: -1 },
+    { timeout: Number.NaN },
+    { maxBuffer: 0 },
+    { maxBuffer: 1.5 },
+    { ffmpegPath: '' },
+    { ffprobePath: '   ' },
+    { overwrite: 'yes' },
+    { cwd: '' },
+    { env: [] },
+    { signal: {} },
+  ])('rejects invalid setting values %o', (invalid) => {
+    expect(() => resolveSettings(invalid as never, defaults)).toThrow();
+  });
+
+  it('rejects a non-object settings container', () => {
+    expect(() => resolveSettings(null as never, defaults)).toThrow(
+      expect.objectContaining({ code: 123 }),
+    );
+  });
 });
 
 describe('time helpers', () => {
@@ -158,5 +180,9 @@ describe('command helpers', () => {
     ['4M', '4M'],
   ])('normalizes bitrate %s', (value, expected) => {
     expect(asBitrate(value)).toBe(expected);
+  });
+
+  it.each([0, -1, Number.NaN, '', 'fast', '-2M'])('rejects invalid bitrate %s', (value) => {
+    expect(() => asBitrate(value)).toThrow(expect.objectContaining({ code: 120 }));
   });
 });

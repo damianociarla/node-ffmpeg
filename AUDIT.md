@@ -94,12 +94,13 @@ copy, filename typo, and frame-quality changes. URI input is implemented. PNG/AW
 trimming remain use cases for the general argument API rather than dedicated presets. Each PR should
 be closed with a link to the modernization release instead of merged onto the legacy code.
 
-## Release risks and recommended rollout
+## Release status and ongoing verification
 
-1. Publish a beta tag first (for example `1.0.0-beta.1`) and ask high-volume dependents to test.
-2. Validate Linux, macOS, and Windows with current FFmpeg releases and representative media corpora.
-3. Compare CommonJS callback behavior in several real dependents; npm weekly usage makes accidental
-   compatibility changes costly.
-4. Enable private vulnerability reporting, branch protection, required CI, and trusted publishing.
-5. After beta feedback, publish 1.0.0, deprecate 0.0.4 with a migration pointer, then triage/close
-   legacy issues and PRs using the table above.
+Version 1.0.0 was published on 2026-08-20 as the modernization boundary. Version 1.0.1 followed with
+concurrency, buffering, validation, progress, frame extraction, watermark, CI, accessibility, and
+supply-chain hardening identified during the post-release review.
+
+The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
+private vulnerability reporting, required pull-request checks, immutable Action references, and npm
+trusted publishing with provenance. Representative downstream media corpora and high-volume service
+testing remain ongoing operational work rather than claims made by this package.
