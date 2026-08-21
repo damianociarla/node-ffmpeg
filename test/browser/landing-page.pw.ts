@@ -57,7 +57,7 @@ test('landing page matches its full-page visual baseline', async ({ page }) => {
     animations: 'disabled',
     caret: 'hide',
     fullPage: true,
-    maxDiffPixelRatio: 0.01,
+    maxDiffPixels: 500,
     scale: 'css',
   });
 

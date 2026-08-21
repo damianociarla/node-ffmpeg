@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.3 - 2026-08-21
+
+### Testing and supply-chain hardening
+
+- Replaced the one-percent visual tolerance with an absolute 500-pixel limit for full-page snapshots
+- Explicitly disabled install scripts for Playwright's nested `fsevents@2.3.2` dependency
+- Kept the existing `fsevents@2.3.3` denial so the install-script policy covers the complete dependency tree
+
 ## 1.1.2 - 2026-08-21
 
 ### Testing and release engineering
