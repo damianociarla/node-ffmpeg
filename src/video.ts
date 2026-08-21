@@ -14,7 +14,10 @@ import type {
   ResolvedSettings,
   WatermarkSettings,
 } from './types.js';
-import { asBitrate, durationToSeconds, gcd } from './utils.js';
+import { asBitrate, assertSafeOutput, durationToSeconds, ffmpegColor, gcd } from './utils.js';
+import { effectiveDuration, ProgressStreamParser } from './progress.js';
+
+export { effectiveDuration, parseProgress, ProgressStreamParser } from './progress.js';
 
 interface VideoOptions {
   audio?: {
@@ -63,27 +66,6 @@ interface FileFingerprint {
   size: number;
   mtimeMs: number;
   ctimeMs: number;
-}
-
-export class ProgressStreamParser {
-  private remainder = '';
-
-  constructor(private readonly duration: number) {}
-
-  write(chunk: string): Progress[] {
-    const parts = `${this.remainder}${chunk}`.split(/\r\n|[\r\n]/);
-    this.remainder = parts.pop() ?? '';
-    if (this.remainder.length > 64 * 1024) this.remainder = this.remainder.slice(-64 * 1024);
-    return parts
-      .map((line) => parseProgress(line, this.duration))
-      .filter((progress): progress is Progress => progress !== undefined);
-  }
-
-  flush(): Progress[] {
-    const progress = parseProgress(this.remainder, this.duration);
-    this.remainder = '';
-    return progress ? [progress] : [];
-  }
 }
 
 const positions = new Set(['NE', 'NC', 'NW', 'SE', 'SC', 'SW', 'C', 'CE', 'CW']);
@@ -253,6 +235,7 @@ export class Video extends EventEmitter<VideoEvents> {
     keepAspectRatio = false,
     paddingColor = 'black',
   ): this {
+    ffmpegColor(paddingColor);
     Object.assign((this.options.video ??= {}), {
       size,
       keepPixelAspectRatio,
@@ -361,7 +344,7 @@ export class Video extends EventEmitter<VideoEvents> {
   save(destination: string, callback: LegacyCallback<string>): void;
   save(destination: string, callback?: LegacyCallback<string>): Promise<string> | void {
     return settle(
-      this.execute(this.buildArgs(destination)).then(() => destination),
+      this.execute(this.buildArgs(destination), this.progressDuration()).then(() => destination),
       callback,
     );
   }
@@ -376,6 +359,7 @@ export class Video extends EventEmitter<VideoEvents> {
       extname(destination).toLowerCase() === '.mp3'
         ? destination
         : join(dirname(destination), `${basename(destination, extname(destination))}.mp3`);
+    assertSafeOutput(extension);
     const args = [
       this.settings.overwrite ? '-y' : '-n',
       '-hide_banner',
@@ -457,12 +441,13 @@ export class Video extends EventEmitter<VideoEvents> {
     );
     this.setWatermark(watermarkPath, watermarkSettings);
     return settle(
-      this.execute(this.buildArgs(destination)).then(() => destination),
+      this.execute(this.buildArgs(destination), this.progressDuration()).then(() => destination),
       callback,
     );
   }
 
   private buildArgs(destination: string): string[] {
+    assertSafeOutput(destination);
     const args = [this.settings.overwrite ? '-y' : '-n', '-hide_banner'];
     const video = this.options.video;
     const audio = this.options.audio;
@@ -627,7 +612,7 @@ export class Video extends EventEmitter<VideoEvents> {
       size,
       keepPixelAspectRatio: settings.keep_pixel_aspect_ratio ?? true,
       keepAspectRatio: settings.keep_aspect_ratio ?? true,
-      paddingColor: settings.padding_color ?? 'black',
+      paddingColor: ffmpegColor(settings.padding_color ?? 'black'),
     };
     const dimension = this.calculateDimension(this.options.video);
     if (temporaryVideo) this.options.video = temporaryVideo;
@@ -642,8 +627,21 @@ export class Video extends EventEmitter<VideoEvents> {
     }
     if (filters.length > 0) args.push('-vf', filters.join(','), '-fps_mode', 'vfr');
     if (settings.number) args.push('-frames:v', String(settings.number));
+    assertSafeOutput(outputPattern, 'frame output');
     args.push('-q:v', String(settings.quality ?? 2), outputPattern);
-    await this.execute(args);
+    await this.execute(
+      args,
+      effectiveDuration(this.metadata.duration.seconds, {
+        startTime:
+          settings.start_time === undefined || settings.start_time === null
+            ? undefined
+            : numericTime(settings.start_time, 'start_time', true),
+        duration:
+          settings.duration_time === undefined || settings.duration_time === null
+            ? undefined
+            : numericTime(settings.duration_time, 'duration_time', false),
+      }),
+    );
 
     const after = await frameFingerprints(destinationFolder, matcher);
     return [...after.entries()]
@@ -660,10 +658,20 @@ export class Video extends EventEmitter<VideoEvents> {
       .map((entry) => join(destinationFolder, entry));
   }
 
-  private async execute(args: string[]): Promise<ProcessResult> {
+  private progressDuration(): number {
+    return effectiveDuration(this.metadata.duration.seconds, {
+      startTime: this.options.video?.startTime,
+      duration: this.options.video?.duration,
+    });
+  }
+
+  private async execute(
+    args: string[],
+    progressDuration = this.metadata.duration.seconds,
+  ): Promise<ProcessResult> {
     const command = this.settings.ffmpegPath;
     const display = displayCommand(command, args);
-    const progressParser = new ProgressStreamParser(this.metadata.duration.seconds);
+    const progressParser = new ProgressStreamParser(progressDuration);
     const emitProgress = (progress: Progress): void => {
       this.emit('progress', progress);
     };
@@ -741,19 +749,4 @@ function watermarkOverlay(position: string, settings: WatermarkSettings): string
     SE: [right, bottom],
   };
   return (coordinates[position] ?? coordinates.SW ?? ['0', 'main_h-overlay_h']).join(':');
-}
-
-export function parseProgress(chunk: string, duration: number): Progress | undefined {
-  const timeMatch = /time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/.exec(chunk);
-  if (!timeMatch) return undefined;
-  const time = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
-  const frames = /frame=\s*(\d+)/.exec(chunk)?.[1];
-  const fps = /fps=\s*([\d.]+)/.exec(chunk)?.[1];
-  const speed = /speed=\s*([\d.]+)x/.exec(chunk)?.[1];
-  const progress: Progress = { time };
-  if (frames) progress.frames = Number(frames);
-  if (fps) progress.fps = Number(fps);
-  if (speed) progress.speed = Number(speed);
-  if (duration > 0) progress.percent = Math.min(100, (time / duration) * 100);
-  return progress;
 }

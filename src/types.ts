@@ -29,6 +29,12 @@ export interface ResolvedSettings {
   env?: NodeJS.ProcessEnv;
 }
 
+/** Settings that may vary for each media opened through an FfmpegClient. */
+export type FfmpegOperationSettings = Pick<
+  FfmpegSettings,
+  'encoding' | 'timeout' | 'maxBuffer' | 'overwrite' | 'signal'
+>;
+
 export interface FfmpegConfiguration {
   modules: string[];
   /** Legacy union of writable formats and available encoders. */

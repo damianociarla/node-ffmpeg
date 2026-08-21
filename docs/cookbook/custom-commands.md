@@ -36,9 +36,13 @@ video
 Each command and value is a distinct process argument. Passing `'-crf 20'` as one string is not
 equivalent to `.addCommand('-crf', 20)`.
 
+`addInput`, `addCommand`, `addOutputOption`, and `addFilterComplex` are trusted low-level escape
+hatches. Never pass unvalidated user strings to them: bypassing the typed setters also bypasses
+their semantic validation.
+
 ## Remote inputs
 
-Any protocol supported by the installed FFmpeg build can be used:
+Hierarchical URLs (`scheme://...`) supported by the installed FFmpeg build can be used:
 
 ```ts
 const stream = await ffmpeg('rtsp://camera.example/live');
@@ -46,3 +50,7 @@ await stream.setVideoDuration(10).save('/media/capture.mp4');
 ```
 
 Use deployment-level protocol and network restrictions when processing untrusted URLs.
+
+Non-hierarchical virtual inputs such as `lavfi:`, `concat:`, and `pipe:` are not accepted as primary
+inputs. Neither stdin (`-`) nor Node.js streams are currently supported because initialization probes
+the source before conversion. Local files and hierarchical URLs are the supported input model.

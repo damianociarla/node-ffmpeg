@@ -3,10 +3,21 @@ import { mkdtemp, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { parseProgress, ProgressStreamParser } from '../src/video.js';
+import { effectiveDuration, parseProgress, ProgressStreamParser } from '../src/video.js';
 import { createVideo, watermark } from './helpers.js';
 
 describe('conversion execution and lifecycle', () => {
+  it('rejects option-like outputs before spawning FFmpeg', () => {
+    const video = createVideo();
+    const onStart = vi.fn();
+    video.on('start', onStart);
+    expect(() => video.save('-report')).toThrow(expect.objectContaining({ code: 124 }));
+    expect(() => video.fnExtractSoundToMP3('-report')).toThrow(
+      expect.objectContaining({ code: 124 }),
+    );
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it('emits start, stderr, progress and end in order', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-events-'));
     const video = createVideo({ overwrite: true });
@@ -81,6 +92,16 @@ describe('conversion execution and lifecycle', () => {
     setTimeout(() => controller.abort(), 25);
     await expect(promise).rejects.toMatchObject({ code: 117 });
   });
+
+  it('reports progress against the configured output duration', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-trim-progress-'));
+    const video = createVideo().setVideoDuration(5);
+    const progress = new Promise<number | undefined>((resolve) => {
+      video.once('progress', (event) => resolve(event.percent));
+    });
+    await video.save(join(directory, 'trimmed.mp4'));
+    await expect(progress).resolves.toBe(100);
+  });
 });
 
 describe('MP3 extraction', () => {
@@ -114,6 +135,19 @@ describe('MP3 extraction', () => {
 });
 
 describe('frame extraction', () => {
+  it('rejects option-like frame patterns and unsafe padding colors before execution', async () => {
+    const onStart = vi.fn();
+    const video = createVideo();
+    video.on('start', onStart);
+    await expect(video.fnExtractFrameToJPG('.', { file_name: '-report' })).rejects.toMatchObject({
+      code: 124,
+    });
+    await expect(
+      video.fnExtractFrameToJPG('.', { padding_color: 'red,negate' }),
+    ).rejects.toMatchObject({ code: 125 });
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ every_n_frames: 5 }, 'select=not(mod(n\\,5))'],
     [{ every_n_seconds: 2 }, 'select=not(mod(t\\,2))'],
@@ -219,6 +253,12 @@ describe('frame extraction', () => {
 });
 
 describe('watermark preset', () => {
+  it('rejects an option-like explicit watermark destination', () => {
+    expect(() => createVideo().fnAddWatermark(watermark, '-report')).toThrow(
+      expect.objectContaining({ code: 124 }),
+    );
+  });
+
   it('derives a destination name and writes the result', async () => {
     const result = await createVideo().fnAddWatermark(watermark, { position: 'C' });
     expect(result).toBe(
@@ -244,6 +284,17 @@ describe('watermark preset', () => {
 });
 
 describe('progress parsing edge cases', () => {
+  it.each([
+    [10.5, {}, 10.5],
+    [10.5, { startTime: 2 }, 8.5],
+    [10.5, { duration: 3 }, 3],
+    [10.5, { startTime: 9, duration: 3 }, 1.5],
+    [0, { duration: 5 }, 5],
+    [0, {}, 0],
+  ] as const)('calculates effective duration for %s and %o', (source, window, expected) => {
+    expect(effectiveDuration(source, window)).toBe(expected);
+  });
+
   it('returns undefined without a timestamp', () => {
     expect(parseProgress('frame=1 fps=25', 10)).toBeUndefined();
   });

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   asBitrate,
+  assertSafeOutput,
   durationToSeconds,
+  ffmpegColor,
   formatDuration,
   gcd,
   isRemoteInput,
@@ -89,6 +91,14 @@ describe('settings resolution', () => {
     { cwd: '' },
     { env: [] },
     { signal: {} },
+    {
+      signal: {
+        aborted: false,
+        addEventListener() {
+          // Deliberately incomplete: removeEventListener is missing.
+        },
+      },
+    },
   ])('rejects invalid setting values %o', (invalid) => {
     expect(() => resolveSettings(invalid as never, defaults)).toThrow();
   });
@@ -97,6 +107,22 @@ describe('settings resolution', () => {
     expect(() => resolveSettings(null as never, defaults)).toThrow(
       expect.objectContaining({ code: 123 }),
     );
+  });
+
+  it('rejects an AbortSignal-shaped object without a complete event interface', () => {
+    expect(() =>
+      resolveSettings(
+        {
+          signal: {
+            aborted: false,
+            addEventListener() {
+              // Deliberately incomplete: removeEventListener is missing.
+            },
+          } as never,
+        },
+        defaults,
+      ),
+    ).toThrow(expect.objectContaining({ code: 123 }));
   });
 });
 
@@ -167,7 +193,7 @@ describe('command helpers', () => {
     ['https://example.com/video.mp4', true],
     ['RTSP://camera/live', true],
     ['custom+media://source', true],
-    ['-', true],
+    ['-', false],
     ['/tmp/local.mp4', false],
   ])('detects remote input %s', (value, expected) => {
     expect(isRemoteInput(value)).toBe(expected);
@@ -185,4 +211,27 @@ describe('command helpers', () => {
   it.each([0, -1, Number.NaN, '', 'fast', '-2M'])('rejects invalid bitrate %s', (value) => {
     expect(() => asBitrate(value)).toThrow(expect.objectContaining({ code: 120 }));
   });
+
+  it.each(['output.mp4', './-report', '/tmp/-report', 'video with spaces.mp4'])(
+    'accepts safe output argument %s',
+    (value) => expect(() => assertSafeOutput(value)).not.toThrow(),
+  );
+
+  it.each(['-report', '-', '', null])('rejects unsafe output argument %s', (value) => {
+    expect(() => assertSafeOutput(value)).toThrow(
+      expect.objectContaining({ code: value === '' || value === null ? 123 : 124 }),
+    );
+  });
+
+  it.each(['black', 'AliceBlue', '#112233', '0x11223344', '112233', 'red@0.5', '#112233@0x80'])(
+    'accepts filter-safe FFmpeg color %s',
+    (value) => {
+      expect(ffmpegColor(value)).toBe(value);
+    },
+  );
+
+  it.each(['red,negate', 'red;null', 'red:blue', 'red\\,negate', 'red@2', ''])(
+    'rejects unsafe FFmpeg color %s',
+    (value) => expect(() => ffmpegColor(value)).toThrow(expect.objectContaining({ code: 125 })),
+  );
 });

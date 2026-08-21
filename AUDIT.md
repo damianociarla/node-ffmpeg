@@ -77,7 +77,7 @@ should be verified against the new release before closure.
 | Directly addressed: codec/format/bitrate/options                                       | #30, #32, #40, #47, #65, #71, #75, #79, #89, #91, #96 | Stream-specific flags, real encoder lists, codec copy, metadata, quality, duration, repeated options                                         |
 | Directly addressed: frames, watermark, filesystem, progress                            | #11, #28, #33, #55, #56, #97                          | Filter validation/results fixed, recursive mkdir uses current Node semantics, compass coordinates corrected, lifecycle/progress events added |
 | Supported through the general API                                                      | #17, #25, #39, #64, #92, #99                          | Multiple inputs, arbitrary output/filter options, audio replacement, threads, drawtext/subtitle arguments                                    |
-| Input/protocol support improved; scenario still needs integration verification         | #4, #14, #46, #67                                     | Remote protocol strings are accepted; Node streams are not yet a first-class input/output API                                                |
+| Input/protocol support improved; scenario still needs integration verification         | #4, #14, #46, #67                                     | Hierarchical URL inputs are accepted; stdin, virtual protocols, and Node streams are explicitly unsupported as primary inputs                |
 | Likely fixed or diagnosable but dependent on source media/local FFmpeg                 | #61, #63, #80, #95, #102                              | Errors now include stderr; performance and media-specific reports need reproduction before closure                                           |
 | Feature request not included as a dedicated preset                                     | #38                                                   | Concatenation can be built with custom inputs/options; a validated concat preset remains future work                                         |
 | Distribution/project administration                                                    | #34, #42, #48, #77, #93, #100                         | Documented requirements and license; npm publish, private reporting toggle, and browser use are operational concerns                         |
@@ -98,7 +98,9 @@ be closed with a link to the modernization release instead of merged onto the le
 
 Version 1.0.0 was published on 2026-08-20 as the modernization boundary. Version 1.0.1 followed with
 concurrency, buffering, validation, progress, frame extraction, watermark, CI, accessibility, and
-supply-chain hardening identified during the post-release review.
+supply-chain hardening identified during the post-release review. Version 1.0.2 adds owned
+initialization cancellation, strict output/filter validation, trim-aware progress, isolated reusable
+clients, and a single aggregate CI gate.
 
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm

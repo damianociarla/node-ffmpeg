@@ -17,16 +17,20 @@ await video.save(output);
 
 ## Progress model
 
-| Property  | Type      | Meaning                                  |
-| --------- | --------- | ---------------------------------------- |
-| `time`    | `number`  | Encoded media time in seconds            |
-| `percent` | `number?` | Percentage when source duration is known |
-| `frames`  | `number?` | Processed video frames                   |
-| `fps`     | `number?` | Current processing rate                  |
-| `speed`   | `number?` | Multiple of real-time speed              |
+| Property  | Type      | Meaning                                        |
+| --------- | --------- | ---------------------------------------------- |
+| `time`    | `number`  | Encoded media time in seconds                  |
+| `percent` | `number?` | Percentage when an effective duration is known |
+| `frames`  | `number?` | Processed video frames                         |
+| `fps`     | `number?` | Current processing rate                        |
+| `speed`   | `number?` | Multiple of real-time speed                    |
 
 An `error` listener is optional. Without one, a failed operation rejects its Promise normally instead
 of triggering an unhandled EventEmitter exception.
+
+Progress uses the effective output duration. `setVideoStartTime()` subtracts the skipped portion and
+`setVideoDuration()` caps the denominator; when only an explicit duration is known, it is used. The
+percentage is capped at 100 and remains `undefined` when no reliable duration is available.
 
 ## Process results
 

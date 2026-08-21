@@ -28,6 +28,8 @@ const definitions = {
   invalid_time: [121, 'The %s value "%s" is invalid'],
   invalid_aspect_ratio: [122, 'The aspect ratio "%s" is invalid'],
   invalid_option_value: [123, 'The value supplied for option "%s" is invalid'],
+  unsafe_output_path: [124, 'The output path "%s" is unsafe because it begins with "-"'],
+  invalid_color: [125, 'The FFmpeg color "%s" is invalid'],
 } as const;
 
 export type ErrorName = keyof typeof definitions;

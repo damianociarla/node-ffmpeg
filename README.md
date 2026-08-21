@@ -26,7 +26,7 @@ import ffmpeg from 'ffmpeg';
 const video = await ffmpeg('/media/input.mp4');
 
 video.on('progress', ({ percent, time }) => {
-  console.log(`${percent?.toFixed(1)}% (${time}s)`);
+  console.log(percent === undefined ? `${time}s` : `${percent.toFixed(1)}% (${time}s)`);
 });
 
 await video
@@ -69,6 +69,20 @@ const video = await create('/media/input.mp4', {
 });
 ```
 
+For services that process several files with one fixed FFmpeg installation, inspect capabilities
+once with an isolated client:
+
+```ts
+import { createClient } from 'ffmpeg';
+
+const client = await createClient({ overwrite: true, timeout: 120_000 });
+const video = await client.open('/media/input.mp4');
+```
+
+Client executable paths, environment, and working directory are snapshotted at creation. Per-open
+settings may adjust timeout, buffering, overwrite behavior, encoding, and cancellation without
+invalidating the cached capabilities.
+
 ## Executable paths
 
 Set paths globally for legacy applications:
@@ -88,8 +102,9 @@ await ffmpeg('/media/input.mp4', {
 ```
 
 When an absolute `ffmpegPath` is supplied and `ffprobePath` is omitted, a sibling `ffprobe`
-executable is inferred. URLs such as HTTP, HTTPS, RTSP, and other protocols supported by the
-installed FFmpeg build are accepted as inputs.
+executable is inferred. Hierarchical URLs such as HTTP, HTTPS, and RTSP are accepted as inputs when
+supported by the installed FFmpeg build. Non-hierarchical virtual inputs, stdin (`-`), and Node.js
+streams are not supported as primary inputs because initialization probes the source first.
 
 ## Settings
 
@@ -170,6 +185,9 @@ await video
 ```
 
 Arguments are passed directly to `spawn` with `shell: false`; do not add shell quotes.
+Custom input, command, output-option, and filter methods are trusted escape hatches and must not
+receive unvalidated user strings. Output destinations beginning with `-` are rejected; use an
+explicit `./-name.ext` or absolute path when the filename intentionally starts with a dash.
 
 ## Migrating from 0.0.4
 

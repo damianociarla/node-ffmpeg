@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress';
 
 export default defineConfig({
   lang: 'en-US',
-  title: 'node-ffmpeg',
+  title: 'node-ffmpeg — Typed FFmpeg for Node.js',
   description: 'A modern, typed Node.js API for FFmpeg.',
   base: '/node-ffmpeg/',
   cleanUrls: true,
@@ -57,6 +57,13 @@ export default defineConfig({
       ['link', { rel: 'canonical', href: url }],
       ['meta', { property: 'og:url', content: url }],
     ];
+  },
+  transformHtml(code, id) {
+    if (!id.endsWith('404.html')) return code;
+    return code.replace(
+      '<div id="app"></div>',
+      '<div id="app"></div><noscript><main class="custom-not-found"><p>404 / SIGNAL LOST</p><h1>This frame does not exist.</h1><a href="/node-ffmpeg/">Return to node-ffmpeg</a></main></noscript>',
+    );
   },
   markdown: {
     lineNumbers: true,

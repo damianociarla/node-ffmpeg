@@ -19,3 +19,7 @@ Include the affected version, platform, FFmpeg version, reproduction steps, and 
 - Use `timeout`, `AbortSignal`, container limits, and OS-level CPU/memory limits for public services.
 - Restrict network protocols in the FFmpeg build or deployment when remote inputs are unnecessary.
 - Avoid passing secrets through arguments because process command lines may be observable locally.
+- Keep untrusted values out of `addInput`, `addCommand`, `addOutputOption`, and `addFilterComplex`;
+  these low-level escape hatches intentionally expose raw FFmpeg argument semantics.
+- Output destinations beginning with `-` are rejected. Prefix intentional relative filenames with
+  `./` so FFmpeg cannot reinterpret them as options.

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
-import ffmpeg, { create, FfmpegError, parseProgress } from '../src/index.js';
+import ffmpeg, { create, createClient, FfmpegError, parseProgress } from '../src/index.js';
 
 const fixtures = resolve(import.meta.dirname, 'fixtures');
 const input = join(fixtures, 'input video.mp4');
@@ -58,6 +58,80 @@ describe('factory and probe', () => {
     expect(first.info_configuration.codecs.encode).toContain('tenant_one');
     expect(second.info_configuration.codecs.encode).toContain('tenant_two');
     expect(second.info_configuration.codecs.encode).not.toContain('tenant_one');
+  });
+
+  it('cancels sibling initialization processes and preserves the root failure', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-owned-init-'));
+    const failingInput = join(directory, 'probe-failure.mp4');
+    const marker = join(directory, 'late-encoder-marker');
+    await writeFile(failingInput, 'fixture');
+    const started = performance.now();
+    const error = await create(failingInput, {
+      env: {
+        ...process.env,
+        CONFIG_DELAY: '3000',
+        CONFIG_MARKER: marker,
+      },
+    }).catch((reason: unknown) => reason);
+    expect(error).toMatchObject({ code: 115 });
+    expect((error as FfmpegError).stderr).toContain('probe failed');
+    expect(performance.now() - started).toBeLessThan(1_500);
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  it('inspects configuration once per client and probes once per opened media', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-client-count-'));
+    const log = join(directory, 'invocations.ndjson');
+    const client = await createClient({
+      ffmpegPath: fakeFfmpeg,
+      ffprobePath: fakeFfprobe,
+      env: { ...process.env, INVOCATION_LOG: log },
+    });
+    const first = await client.open(input);
+    const second = await client.open(input);
+    const invocations = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as { executable: string; args: string[] });
+    expect(invocations.filter(({ args }) => args.includes('-formats'))).toHaveLength(1);
+    expect(invocations.filter(({ args }) => args.includes('-encoders'))).toHaveLength(1);
+    expect(invocations.filter(({ executable }) => executable === 'ffprobe')).toHaveLength(2);
+    first.info_configuration.codecs.encode.push('consumer-mutation');
+    expect(second.info_configuration.codecs.encode).not.toContain('consumer-mutation');
+    expect(client.configuration.codecs.encode).not.toContain('consumer-mutation');
+  });
+
+  it('keeps client process context fixed while allowing per-open operation settings', async () => {
+    const client = await createClient({ ffmpegPath: fakeFfmpeg, ffprobePath: fakeFfprobe });
+    expect(() => client.open(input, { ffmpegPath: '/other/ffmpeg' } as never)).toThrow(
+      expect.objectContaining({ code: 102 }),
+    );
+    await expect(client.open(input, { overwrite: true, timeout: 500 })).resolves.toHaveProperty(
+      'file_path',
+      input,
+    );
+  });
+
+  it('isolates per-open abort signals and supports a client lifetime signal', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'node-ffmpeg-client-signals-'));
+    const slowInput = join(directory, 'probe-slow.mp4');
+    const normalInput = join(directory, 'normal.mp4');
+    await Promise.all([writeFile(slowInput, 'fixture'), writeFile(normalInput, 'fixture')]);
+    const lifetime = new AbortController();
+    const client = await createClient({
+      ffmpegPath: fakeFfmpeg,
+      ffprobePath: fakeFfprobe,
+      signal: lifetime.signal,
+    });
+    const operation = new AbortController();
+    const slow = client.open(slowInput, { signal: operation.signal });
+    const normal = client.open(normalInput);
+    operation.abort();
+    await expect(slow).rejects.toMatchObject({ code: 117 });
+    await expect(normal).resolves.toHaveProperty('file_path', normalInput);
+    lifetime.abort();
+    await expect(client.open(normalInput)).rejects.toMatchObject({ code: 117 });
   });
 
   it('reports oversized ffprobe JSON without attempting to parse a truncated tail', async () => {

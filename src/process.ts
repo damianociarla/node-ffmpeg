@@ -194,7 +194,11 @@ export function runProcess(
     function cleanup(): void {
       if (timeout) clearTimeout(timeout);
       if (forceKillTimer) clearTimeout(forceKillTimer);
-      settings.signal?.removeEventListener('abort', onAbort);
+      try {
+        settings.signal?.removeEventListener('abort', onAbort);
+      } catch {
+        // Cleanup must never escape a child-process event handler.
+      }
     }
   });
 }
