@@ -524,10 +524,13 @@ body {
 }
 .text-action {
   color: var(--nf-text);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
   font-size: 13px;
   border-bottom: 1px solid var(--nf-muted);
-  padding-bottom: 4px;
+  padding: 0 4px;
 }
 .final-signal {
   position: absolute;
@@ -571,6 +574,9 @@ body {
   justify-content: space-between;
   color: var(--nf-muted);
   font-size: 11px;
+}
+.landing-footer .landing-brand {
+  min-height: 44px;
 }
 
 .hero-enter {
@@ -690,22 +696,22 @@ body {
     grid-template-columns: 1fr;
   }
   .hero-copy {
-    min-height: 100svh;
-    padding: 140px 24px 95px;
+    min-height: auto;
+    padding: 130px 24px 72px;
   }
   .hero-copy h1 {
     font-size: clamp(54px, 16vw, 90px);
   }
   .hero-terminal {
     margin-top: 0;
-    min-height: 78vh;
-    padding: 70px 24px;
+    min-height: auto;
+    padding: 48px 24px 56px;
     border-left: 0;
     border-top: 1px solid var(--nf-line);
   }
   .hero-terminal pre {
-    margin: 50px 0;
-    font-size: 11px;
+    margin: 34px 0;
+    font-size: 12px;
   }
   .hero-orbit {
     display: none;

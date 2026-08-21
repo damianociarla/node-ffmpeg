@@ -1,6 +1,6 @@
 {
   "name": "ffmpeg",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A modern, typed Node.js API for processing media with FFmpeg",
   "keywords": [
     "ffmpeg",

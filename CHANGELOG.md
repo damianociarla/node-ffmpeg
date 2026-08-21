@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.3 - 2026-08-21
+
+### Fixed
+
+- Delivered save, MP3, frame, and watermark validation failures consistently through Promise rejection or asynchronous callbacks
+- Consumed fluent builder state atomically at terminal-method invocation so failures cannot poison later operations
+- Removed temporary frame-sizing mutations and isolated concurrent operations on the same `Video`
+- Emitted optional error events for planning, filesystem, and process failures through one lifecycle
+- Mapped frame-directory creation failures to stable error `106` with their original cause
+
+### Security and release engineering
+
+- Required release tags to resolve to commits reachable from `main`
+- Required the exact tagged commit to have a successful GitHub Actions `CI / Required` check before installation or npm publishing
+- Added a regression test that keeps release eligibility ahead of every untrusted package step
+
+### Documentation and site
+
+- Added complete method, return, lifecycle, concurrency, and numeric-error references
+- Replaced the absolute “Typed end to end” claim with “Type-safe by default”
+- Reduced mobile hero height, increased terminal text to 12px, enlarged CTA targets, and added `robots.txt`
+
 ## 1.0.2 - 2026-08-21
 
 ### Fixed

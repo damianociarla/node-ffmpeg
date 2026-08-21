@@ -28,6 +28,10 @@ await video.save(output);
 An `error` listener is optional. Without one, a failed operation rejects its Promise normally instead
 of triggering an unhandled EventEmitter exception.
 
+Planning, filesystem, and process failures all emit `error` when a listener exists. Terminal-method
+callbacks are always asynchronous. When multiple operations run concurrently on the same `Video`,
+their events may interleave; ordering remains stable within each individual operation.
+
 Progress uses the effective output duration. `setVideoStartTime()` subtracts the skipped portion and
 `setVideoDuration()` caps the denominator; when only an explicit duration is known, it is used. The
 percentage is capped at 100 and remains `undefined` when no reliable duration is available.

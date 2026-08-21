@@ -102,6 +102,10 @@ supply-chain hardening identified during the post-release review. Version 1.0.2 
 initialization cancellation, strict output/filter validation, trim-aware progress, isolated reusable
 clients, and a single aggregate CI gate.
 
+Version 1.0.3 makes terminal-method failures uniformly asynchronous, consumes immutable per-operation
+builder snapshots, defines concurrent `Video` behavior, and binds trusted publishing to a verified
+commit on protected `main`.
+
 The repository now validates Node 24 and 26 with real FFmpeg on Linux, macOS, and Windows, uses
 private vulnerability reporting, required pull-request checks, immutable Action references, and npm
 trusted publishing with provenance. Representative downstream media corpora and high-volume service

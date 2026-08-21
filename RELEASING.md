@@ -9,6 +9,10 @@ uses GitHub OIDC, does not read a long-lived npm token, and generates npm proven
 4. Publish a GitHub Release for that tag. The release workflow verifies the tag/package version, runs
    the complete project check, and publishes to npm.
 
+Before any package installation, the release workflow also proves that the tagged commit is
+reachable from `origin/main` and that the exact SHA completed the protected `CI / Required` GitHub
+Actions check successfully. A tag from an unmerged or unverified commit fails closed.
+
 The npm trusted publisher must remain restricted to:
 
 - repository: `damianociarla/node-ffmpeg`

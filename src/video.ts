@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
-import { renderError } from './errors.js';
+import { FfmpegError, renderError } from './errors.js';
 import { displayCommand, runProcess } from './process.js';
 import type {
   ExtractFrameSettings,
@@ -46,6 +46,18 @@ interface VideoOptions {
   };
   metadata?: Record<string, string | number>;
   threads?: number;
+}
+
+interface BuilderState {
+  commands: string[];
+  inputs: string[];
+  filtersComplex: string[];
+  options: VideoOptions;
+}
+
+interface OperationPlan {
+  args: string[];
+  progressDuration: number;
 }
 
 interface Dimension {
@@ -313,6 +325,14 @@ export class Video extends EventEmitter<VideoEvents> {
   }
 
   setWatermark(watermarkPath: string, settings: WatermarkSettings = {}): this {
+    (this.options.video ??= {}).watermark = this.resolveWatermark(watermarkPath, settings);
+    return this;
+  }
+
+  private resolveWatermark(
+    watermarkPath: string,
+    settings: WatermarkSettings,
+  ): NonNullable<NonNullable<VideoOptions['video']>['watermark']> {
     if (!existsSync(watermarkPath)) throw renderError('invalid_watermark', watermarkPath);
     const position = settings.position ?? 'SW';
     if (!positions.has(position)) throw renderError('invalid_watermark_position', position);
@@ -324,15 +344,14 @@ export class Video extends EventEmitter<VideoEvents> {
     ] as const) {
       if (value !== undefined) finiteNumber(value, name);
     }
-    (this.options.video ??= {}).watermark = {
+    return {
       path: watermarkPath,
       overlay: watermarkOverlay(position, settings),
     };
-    return this;
   }
 
   getCommand(destination: string): { command: string; args: string[]; display: string } {
-    const args = this.buildArgs(destination);
+    const args = this.buildArgs(destination, this.currentBuilder());
     return {
       command: this.settings.ffmpegPath,
       args,
@@ -343,10 +362,11 @@ export class Video extends EventEmitter<VideoEvents> {
   save(destination: string): Promise<string>;
   save(destination: string, callback: LegacyCallback<string>): void;
   save(destination: string, callback?: LegacyCallback<string>): Promise<string> | void {
-    return settle(
-      this.execute(this.buildArgs(destination), this.progressDuration()).then(() => destination),
-      callback,
-    );
+    return this.runOperation(async (builder) => {
+      const plan = this.createSavePlan(destination, builder);
+      await this.execute(plan);
+      return destination;
+    }, callback);
   }
 
   fnExtractSoundToMP3(destination: string): Promise<string>;
@@ -355,31 +375,33 @@ export class Video extends EventEmitter<VideoEvents> {
     destination: string,
     callback?: LegacyCallback<string>,
   ): Promise<string> | void {
-    const extension =
-      extname(destination).toLowerCase() === '.mp3'
-        ? destination
-        : join(dirname(destination), `${basename(destination, extname(destination))}.mp3`);
-    assertSafeOutput(extension);
-    const args = [
-      this.settings.overwrite ? '-y' : '-n',
-      '-hide_banner',
-      '-i',
-      this.file_path,
-      '-vn',
-      '-ar',
-      '44100',
-      '-ac',
-      '2',
-      '-b:a',
-      '192k',
-      '-c:a',
-      'libmp3lame',
-      extension,
-    ];
-    return settle(
-      this.execute(args).then(() => extension),
-      callback,
-    );
+    return this.runOperation(async () => {
+      const extension =
+        extname(destination).toLowerCase() === '.mp3'
+          ? destination
+          : join(dirname(destination), `${basename(destination, extname(destination))}.mp3`);
+      assertSafeOutput(extension);
+      await this.execute({
+        args: [
+          this.settings.overwrite ? '-y' : '-n',
+          '-hide_banner',
+          '-i',
+          this.file_path,
+          '-vn',
+          '-ar',
+          '44100',
+          '-ac',
+          '2',
+          '-b:a',
+          '192k',
+          '-c:a',
+          'libmp3lame',
+          extension,
+        ],
+        progressDuration: this.metadata.duration.seconds,
+      });
+      return extension;
+    }, callback);
   }
 
   fnExtractFrameToJPG(destinationFolder: string): Promise<string[]>;
@@ -396,8 +418,10 @@ export class Video extends EventEmitter<VideoEvents> {
     maybeCallback?: LegacyCallback<string[]>,
   ): Promise<string[]> | void {
     const callback = typeof settingsOrCallback === 'function' ? settingsOrCallback : maybeCallback;
-    const settings = typeof settingsOrCallback === 'function' ? {} : settingsOrCallback;
-    return settle(this.extractFrames(destinationFolder, settings), callback);
+    const settings = {
+      ...(typeof settingsOrCallback === 'function' ? {} : settingsOrCallback),
+    };
+    return this.runOperation(async () => this.extractFrames(destinationFolder, settings), callback);
   }
 
   fnAddWatermark(watermarkPath: string): Promise<string>;
@@ -430,28 +454,38 @@ export class Video extends EventEmitter<VideoEvents> {
     for (const argument of args) {
       if (typeof argument === 'string') destination = argument;
       else if (typeof argument === 'function') callback = argument;
-      else watermarkSettings = argument;
+      else watermarkSettings = { ...argument };
     }
-    destination ??= join(
-      dirname(this.file_path),
-      `${basename(this.file_path, extname(this.file_path))}_watermark_${basename(
-        watermarkPath,
-        extname(watermarkPath),
-      )}${extname(this.file_path)}`,
-    );
-    this.setWatermark(watermarkPath, watermarkSettings);
-    return settle(
-      this.execute(this.buildArgs(destination), this.progressDuration()).then(() => destination),
-      callback,
-    );
+    return this.runOperation(async (builder) => {
+      const resolvedDestination =
+        destination ??
+        join(
+          dirname(this.file_path),
+          `${basename(this.file_path, extname(this.file_path))}_watermark_${basename(
+            watermarkPath,
+            extname(watermarkPath),
+          )}${extname(this.file_path)}`,
+        );
+      const watermark = this.resolveWatermark(watermarkPath, watermarkSettings);
+      const effectiveBuilder: BuilderState = {
+        ...builder,
+        options: {
+          ...builder.options,
+          video: { ...builder.options.video, watermark },
+        },
+      };
+      const plan = this.createSavePlan(resolvedDestination, effectiveBuilder);
+      await this.execute(plan);
+      return resolvedDestination;
+    }, callback);
   }
 
-  private buildArgs(destination: string): string[] {
+  private buildArgs(destination: string, builder: BuilderState): string[] {
     assertSafeOutput(destination);
     const args = [this.settings.overwrite ? '-y' : '-n', '-hide_banner'];
-    const video = this.options.video;
-    const audio = this.options.audio;
-    const allInputs = [...this.inputs];
+    const video = builder.options.video;
+    const audio = builder.options.audio;
+    const allInputs = [...builder.inputs];
     const filters: string[] = [];
     if (video?.watermark) {
       const watermarkInput = allInputs.length;
@@ -459,7 +493,7 @@ export class Video extends EventEmitter<VideoEvents> {
       filters.push(`[0:v][${watermarkInput}:v]overlay=${video.watermark.overlay}`);
     }
     for (const input of allInputs) args.push('-i', input);
-    filters.push(...this.filtersComplex);
+    filters.push(...builder.filtersComplex);
 
     if (video?.disabled) args.push('-vn');
     else if (video) {
@@ -492,11 +526,12 @@ export class Video extends EventEmitter<VideoEvents> {
       if (audio.quality !== undefined) args.push('-q:a', String(audio.quality));
       if (audio.bitrate !== undefined) args.push('-b:a', asBitrate(audio.bitrate));
     }
-    if (this.options.threads !== undefined) args.push('-threads', String(this.options.threads));
-    for (const [key, value] of Object.entries(this.options.metadata ?? {})) {
+    if (builder.options.threads !== undefined)
+      args.push('-threads', String(builder.options.threads));
+    for (const [key, value] of Object.entries(builder.options.metadata ?? {})) {
       args.push('-metadata', `${key}=${value}`);
     }
-    args.push(...this.commands);
+    args.push(...builder.commands);
     if (filters.length > 0) args.push('-filter_complex', filters.join(','));
     args.push(destination);
     return args;
@@ -580,7 +615,12 @@ export class Video extends EventEmitter<VideoEvents> {
     }
     if (settings.quality !== undefined) finiteNumber(settings.quality, 'quality');
 
-    await mkdir(destinationFolder, { recursive: true });
+    try {
+      await mkdir(destinationFolder, { recursive: true });
+    } catch (cause) {
+      const error = renderError('mkdir', destinationFolder);
+      throw new FfmpegError(error.code, error.message, { cause });
+    }
     const size =
       settings.size ?? `${this.metadata.video.resolution.w}x${this.metadata.video.resolution.h}`;
     let fileName = settings.file_name ?? basename(this.file_path, extname(this.file_path));
@@ -607,16 +647,13 @@ export class Video extends EventEmitter<VideoEvents> {
       args.push('-r', String(settings.frame_rate));
     }
 
-    const temporaryVideo = this.options.video;
-    this.options.video = {
+    const frameVideoOptions: NonNullable<VideoOptions['video']> = {
       size,
       keepPixelAspectRatio: settings.keep_pixel_aspect_ratio ?? true,
       keepAspectRatio: settings.keep_aspect_ratio ?? true,
       paddingColor: ffmpegColor(settings.padding_color ?? 'black'),
     };
-    const dimension = this.calculateDimension(this.options.video);
-    if (temporaryVideo) this.options.video = temporaryVideo;
-    else delete this.options.video;
+    const dimension = this.calculateDimension(frameVideoOptions);
     args.push('-s', `${dimension.width}x${dimension.height}`);
     const filters: string[] = [];
     if (settings.every_n_frames) filters.push(`select=not(mod(n\\,${settings.every_n_frames}))`);
@@ -629,9 +666,9 @@ export class Video extends EventEmitter<VideoEvents> {
     if (settings.number) args.push('-frames:v', String(settings.number));
     assertSafeOutput(outputPattern, 'frame output');
     args.push('-q:v', String(settings.quality ?? 2), outputPattern);
-    await this.execute(
+    await this.execute({
       args,
-      effectiveDuration(this.metadata.duration.seconds, {
+      progressDuration: effectiveDuration(this.metadata.duration.seconds, {
         startTime:
           settings.start_time === undefined || settings.start_time === null
             ? undefined
@@ -641,7 +678,7 @@ export class Video extends EventEmitter<VideoEvents> {
             ? undefined
             : numericTime(settings.duration_time, 'duration_time', false),
       }),
-    );
+    });
 
     const after = await frameFingerprints(destinationFolder, matcher);
     return [...after.entries()]
@@ -658,17 +695,22 @@ export class Video extends EventEmitter<VideoEvents> {
       .map((entry) => join(destinationFolder, entry));
   }
 
-  private progressDuration(): number {
+  private createSavePlan(destination: string, builder: BuilderState): OperationPlan {
+    return {
+      args: this.buildArgs(destination, builder),
+      progressDuration: this.progressDuration(builder),
+    };
+  }
+
+  private progressDuration(builder: BuilderState): number {
     return effectiveDuration(this.metadata.duration.seconds, {
-      startTime: this.options.video?.startTime,
-      duration: this.options.video?.duration,
+      startTime: builder.options.video?.startTime,
+      duration: builder.options.video?.duration,
     });
   }
 
-  private async execute(
-    args: string[],
-    progressDuration = this.metadata.duration.seconds,
-  ): Promise<ProcessResult> {
+  private async execute(plan: OperationPlan): Promise<ProcessResult> {
+    const { args, progressDuration } = plan;
     const command = this.settings.ffmpegPath;
     const display = displayCommand(command, args);
     const progressParser = new ProgressStreamParser(progressDuration);
@@ -685,21 +727,43 @@ export class Video extends EventEmitter<VideoEvents> {
       });
       progressParser.flush().forEach(emitProgress);
       this.emit('end', result);
-      this.reset();
       return result;
     } catch (error) {
       progressParser.flush().forEach(emitProgress);
-      if (this.listenerCount('error') > 0) this.emit('error', error);
-      this.reset();
       throw error;
     }
   }
 
-  private reset(): void {
+  private currentBuilder(): BuilderState {
+    return {
+      commands: this.commands,
+      inputs: this.inputs,
+      filtersComplex: this.filtersComplex,
+      options: this.options,
+    };
+  }
+
+  private consumeBuilder(): BuilderState {
+    const builder = this.currentBuilder();
     this.commands = [];
     this.inputs = [this.file_path];
     this.filtersComplex = [];
     this.options = {};
+    return builder;
+  }
+
+  private runOperation<T>(
+    operation: (builder: BuilderState) => Promise<T>,
+    callback?: LegacyCallback<T>,
+  ): Promise<T> | void {
+    const builder = this.consumeBuilder();
+    const promise = Promise.resolve()
+      .then(() => operation(builder))
+      .catch((error: unknown) => {
+        if (this.listenerCount('error') > 0) this.emit('error', error);
+        throw error;
+      });
+    return settle(promise, callback);
   }
 }
 
