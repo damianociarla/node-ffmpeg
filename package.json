@@ -61,7 +61,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint . && tsc --noEmit",
     "test": "vitest run --coverage",
-    "test:integration": "FFMPEG_INTEGRATION=1 vitest run test/real-ffmpeg.test.ts",
+    "test:integration": "node test/run-integration.mjs",
     "test:watch": "vitest",
     "check": "npm run format:check && npm run lint && npm test && npm run build && npm run docs:build && npm run pack:check",
     "pack:check": "node test/cjs-smoke.cjs && npm pack --dry-run",
