@@ -10,7 +10,7 @@ const files = await video.fnExtractFrameToJPG('/media/frames', {
   number: 6,
   size: '640x?',
   quality: 2,
-  file_name: 'preview_%s',
+  file_name: 'preview',
 });
 ```
 
@@ -43,3 +43,6 @@ Odd dimensions are rounded down to an even number for codec compatibility.
 - `%y`: requested height expression
 
 The frame sequence suffix is added automatically.
+
+For inferred sizes such as `640x?`, use a literal filename prefix as above. Substituting `%s`
+would include `?` in the filename, which Windows does not allow.

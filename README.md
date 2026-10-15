@@ -176,7 +176,7 @@ const files = await video.fnExtractFrameToJPG('/media/frames', {
   number: 10,
   size: '640x?',
   quality: 2,
-  file_name: 'preview_%s',
+  file_name: 'preview',
 });
 ```
 
